@@ -1,0 +1,281 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-purple: #6B46C1;
+  --primary-pink: #EC4899;
+  --light-purple: #A78BFA;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* 渐变背景动画 */
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(-45deg, #667eea, #764ba2, #EC4899, #8B5CF6);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+/* 搜索框样式 */
+.search-container {
+  position: relative;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.search-input {
+  width: 100%;
+  padding: 18px 60px 18px 24px;
+  border-radius: 30px;
+  border: none;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  font-size: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.search-icon {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  color: var(--primary-purple);
+}
+
+/* 快速筛选标签 */
+.filter-chips {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.filter-chip {
+  padding: 10px 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.filter-chip:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.filter-chip.active {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* 底部导航 */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 12px 0 24px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #9CA3AF;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.nav-item.active {
+  color: var(--primary-purple);
+}
+
+.nav-item span {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 全景画卷容器 */
+.panorama-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
+
+.panorama-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+/* 热点标记 */
+.hotspot {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: pulse 2s infinite;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.hotspot:hover {
+  transform: scale(1.2);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 15px rgba(255, 255, 255, 0);
+  }
+}
+
+/* 信息卡片 */
+.info-card {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 20px 24px;
+  border-radius: 20px;
+  max-width: 90%;
+  width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* 加载动画 */
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+/* 缩放控制 */
+.zoom-controls {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.zoom-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.zoom-btn:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .search-input {
+    padding: 16px 50px 16px 20px;
+    font-size: 16px;
+  }
+
+  .filter-chips {
+    gap: 8px;
+  }
+
+  .filter-chip {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .info-card {
+    width: calc(100% - 32px);
+    bottom: 80px;
+  }
+}
