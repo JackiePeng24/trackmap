@@ -2319,6 +2319,113 @@ a {
   border: 2px solid rgba(255, 255, 255, 0.28);
 }
 
+.visual-flow-strip {
+  position: absolute;
+  z-index: 22;
+  left: 50%;
+  bottom: 82px;
+  width: min(560px, calc(100% - 116px));
+  padding: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: stretch;
+  gap: 10px;
+  color: #111;
+  border: 2px solid #111;
+  border-radius: 18px;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.08), 0 22px 46px rgba(20, 18, 14, 0.14);
+  transform: translateX(-50%);
+}
+
+.flow-strip-title {
+  min-width: 72px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  border-radius: 12px;
+  color: #fffdf6;
+  background: #111;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.flow-frames {
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.flow-frames::-webkit-scrollbar {
+  display: none;
+}
+
+.flow-frames button {
+  width: 128px;
+  min-width: 128px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 12px;
+  color: #111;
+  background: #f1eee3;
+  cursor: pointer;
+  text-align: left;
+}
+
+.flow-frames button.active {
+  border-color: #111;
+  background: #ffe1d8;
+}
+
+.flow-frames b {
+  color: var(--coral-dark);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.flow-frames span,
+.flow-frames small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-frames span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.flow-frames small {
+  color: #7b756c;
+  font-size: 9px;
+}
+
+.low-ui-mode .map-summary,
+.low-ui-mode .map-mode-panel,
+.low-ui-mode .map-status,
+.low-ui-mode .visual-flow-strip,
+.low-ui-mode .map-controls,
+.low-ui-mode .map-browser-bar button,
+.low-ui-mode .map-session-title span {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+}
+
+.low-ui-mode .map-book-frame::after {
+  content: "Low UI mode: click the visual field to unfold the next frame";
+}
+
+.low-ui-mode .map-hotspot-layer {
+  opacity: 0.18;
+}
+
 .area-insight-card {
   position: absolute;
   z-index: 26;
@@ -2522,5 +2629,29 @@ a {
 
   .map-hint {
     display: none;
+  }
+
+  .visual-flow-strip {
+    left: 12px;
+    right: 12px;
+    bottom: 18px;
+    width: auto;
+    grid-template-columns: 54px 1fr;
+    border-radius: 16px;
+    transform: none;
+  }
+
+  .flow-strip-title {
+    min-width: 54px;
+    font-size: 9px;
+  }
+
+  .flow-frames button {
+    width: 104px;
+    min-width: 104px;
+  }
+
+  .low-ui-mode .visual-flow-strip {
+    transform: translateY(12px);
   }
 }

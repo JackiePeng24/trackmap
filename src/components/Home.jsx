@@ -93,15 +93,15 @@ function Home({ onSearch }) {
         <div className="hero-copy fade-in">
           <div className="provider-pill">
             <span className="provider-dot" />
-            vivo 蓝心大模型 · LBS · 图片生成
+            vivo 蓝心大模型 · 视觉流生成 · POI 识别
           </div>
-          <p className="eyebrow">AI IMMERSIVE TRAVEL</p>
+          <p className="eyebrow">INFINITE VISUAL TRAVEL</p>
           <h1>
-            去一个地方，
-            <span>先走进它的故事。</span>
+            规划旅行，
+            <span>像翻开一本活的画册。</span>
           </h1>
           <p className="hero-description">
-            输入目的地，行迹会理解城市、核验真实地点，并生成一幅可探索的旅行画卷。
+            输入目的地，AI 先生成一帧全景视觉画面；点击画面任意区域，就继续展开下一帧特写、周边地点与路线灵感。
           </p>
 
           <form className="hero-search" onSubmit={submitSearch}>
@@ -114,19 +114,19 @@ function Home({ onSearch }) {
                 setSearchQuery(event.target.value)
                 if (validation) setValidation('')
               }}
-              placeholder="想去哪里？例如：泉州、北京、阿勒泰"
+              placeholder="想从哪里开始？例如：天津、泉州、阿勒泰"
             />
             <button type="submit" aria-label="生成漫游画卷">
               <Search size={19} />
-              <span>生成画卷</span>
+              <span>生成首帧</span>
               <ArrowRight size={18} />
             </button>
           </form>
           <div className="search-meta">
             <span className={validation ? 'validation-message visible' : 'validation-message'}>
-              {validation || '支持中国城市与目的地，自由输入即可开始'}
+              {validation || '所见即所得：先看见，再深入，再生成路线'}
             </span>
-            <span>AI 内容仅供旅行灵感参考</span>
+            <span>AI 画面与路线仅供旅行灵感参考</span>
           </div>
 
           <div className="filter-row" aria-label="目的地分类">
@@ -148,16 +148,16 @@ function Home({ onSearch }) {
             <div className="orbit-image" />
             <div className="orbit-caption">
               <span>今日灵感</span>
-              <strong>在城市里，重新学习漫步</strong>
+              <strong>点击画面，继续生成下一帧</strong>
             </div>
           </div>
           <div className="floating-note note-one">
             <Sparkles size={17} />
-            AI 生成专属路线
+            AI 像素流渲染
           </div>
           <div className="floating-note note-two">
             <Navigation size={17} />
-            真实 POI 坐标
+            意图-视觉-深入
           </div>
           <div className="orbit-ring ring-one" />
           <div className="orbit-ring ring-two" />
@@ -170,7 +170,7 @@ function Home({ onSearch }) {
             <p className="eyebrow">CURATED DESTINATIONS</p>
             <h2>{selectedCategory === '全部' ? '从一座城市开始' : `${selectedCategory}目的地`}</h2>
           </div>
-          <p>点开一张卡片，让 AI 为你现场生成路线与画卷。</p>
+          <p>点开一张卡片，让 AI 生成首帧画面，再从任意细节继续探索。</p>
         </div>
 
         <div className="destination-grid">
@@ -202,22 +202,22 @@ function Home({ onSearch }) {
         <article>
           <span className="capability-icon"><Sparkles size={22} /></span>
           <div>
-            <strong>懂你的 AI 策划</strong>
-            <p>基于 vivo 蓝心大模型，生成有节奏的一日漫游方案。</p>
+            <strong>意图理解</strong>
+            <p>基于 vivo 蓝心大模型，把目的地和偏好转成可延展的视觉叙事。</p>
           </div>
         </article>
         <article>
           <span className="capability-icon"><Compass size={22} /></span>
           <div>
-            <strong>真实地点核验</strong>
-            <p>通过 vivo LBS 搜索补充地址、坐标和地点类型。</p>
+            <strong>视觉深入</strong>
+            <p>点击任意画面区域，生成局部画面、周边单位和下一步路线。</p>
           </div>
         </article>
         <article>
           <span className="capability-icon"><Navigation size={22} /></span>
           <div>
-            <strong>沉浸式旅行画卷</strong>
-            <p>标志性风景由 AI 融合呈现，热点可点击、缩放和探索。</p>
+            <strong>低 UI 漫游</strong>
+            <p>辅助控件可隐藏，让规划过程更接近 PPT 中的纯视觉浏览器。</p>
           </div>
         </article>
       </section>
