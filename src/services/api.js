@@ -218,13 +218,13 @@ export function generatePanoramaImage(destination, prompt, context = {}) {
   })
 }
 
-export function exploreMapArea(destination, click, mode, guide) {
+export function exploreMapArea(destination, click, mode, guide, imageUrl) {
   if (STATIC_DEMO) {
     return Promise.resolve(demoAreaInsight(destination, click, mode))
   }
 
   return request('/api/area-insight', {
     method: 'POST',
-    body: JSON.stringify({ destination, click, mode, guide })
+    body: JSON.stringify({ destination, click, mode, guide, imageUrl })
   })
 }

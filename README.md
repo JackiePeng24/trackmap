@@ -6,11 +6,13 @@
 
 - 2D 地图式生图：浅米色纸张、线稿建筑、路线标注、圆角标签，参考城市手绘导览图风格。
 - 任意点击识别：点击地图任意位置后，会识别为城市区域并继续生成局部地图。
+- VLM 区域理解接口预留：`/api/area-insight` 已保留 `imageUrl`、`vlm`、`vlmReserved` 字段，当前版本先不实际调用 VLM，避免模型权限影响演示。
 - 多模式 POI：支持饮食、购物、住宿、交通四种模式。
 - vivo POI 搜索：点击区域后，通过 vivo 地理编码 / POI 搜索补充周边单位、地址、类型和坐标。
 - 路线参考：根据 AI 热点与点击区域 POI 生成一日路线与局部串联建议。
 - 安全后端代理：AppKey 只保存在服务端 `.env`，不会打包到浏览器。
 - GitHub Pages 静态演示：Pages 版本使用静态 SVG 地图兜底，保证公开链接可直接展示交互效果。
+- 图片兜底策略：vivo 图片生成若触发内容策略或网络波动，会自动切换为内置 2D SVG 地图，避免页面中断。
 
 官方文档入口：https://aigc.vivo.com.cn/#/document/index?id=1746
 
@@ -33,6 +35,7 @@ npm run dev
 VIVO_APP_ID=your_app_id_here
 VIVO_APP_KEY=your_app_key_here
 VIVO_CHAT_MODEL=Doubao-Seed-2.0-mini
+VIVO_VLM_MODEL=reserved
 VIVO_IMAGE_MODEL=Doubao-Seedream-4.5
 PORT=3001
 ```
@@ -42,7 +45,7 @@ PORT=3001
 - `GET /api/health`：服务与模型配置状态。
 - `POST /api/travel-guide`：调用 vivo 大模型生成目的地攻略、热点和路线。
 - `POST /api/panorama-image`：调用 vivo 图片生成，生成 2D 地图画卷并缓存。
-- `POST /api/area-insight`：接收点击坐标和模式，调用 vivo POI 搜索返回周边单位与路线参考。
+- `POST /api/area-insight`：接收点击坐标、模式和当前图片；当前版本使用坐标区域识别 + vivo POI 搜索返回周边单位与路线参考，VLM 调用位已预留。
 - `GET /api/generated/:file`：读取服务端缓存的生成图片。
 
 ## GitHub Pages

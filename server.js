@@ -14,6 +14,7 @@ const VIVO_BASE_URL = 'https://api-ai.vivo.com.cn'
 const VIVO_APP_ID = process.env.VIVO_APP_ID?.trim()
 const VIVO_APP_KEY = process.env.VIVO_APP_KEY?.trim()
 const CHAT_MODEL = process.env.VIVO_CHAT_MODEL?.trim() || 'Doubao-Seed-2.0-mini'
+const VLM_MODEL = process.env.VIVO_VLM_MODEL?.trim() || 'reserved'
 const IMAGE_MODEL = process.env.VIVO_IMAGE_MODEL?.trim() || 'Doubao-Seedream-4.5'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const generatedDir = path.join(__dirname, 'generated')
@@ -363,21 +364,14 @@ async function normalizeGuide(rawGuide, destination, vibe) {
 function buildMapPrompt(destination, prompt, context = {}) {
   const focus = safeText(context?.focus, '城市中轴与周边街区', 80)
   const mode = modeConfig[context?.mode] || null
-  const modePart = mode ? `当前探索模式：${mode.label}，突出${mode.keyword}、步行路径与周边单位。` : ''
-  return `FLAT 2D MAP ONLY. Top-down illustrated city map infographic, not a photo.
-The whole image must look like a hand drawn paper map / flipbook page:
-- cream paper background, thin black linework, simple grey building blocks
-- green park rectangles, blue road line, red main travel route
-- rounded callout bubbles and a dark bottom caption bar
-- orthographic top-down view, no sky, no cinematic lighting, no people close-up
-- no realistic landmark photo, no 3D render, no panorama, no camera perspective
-- no watermark, no logo, no large readable text
-
-中文要求：只画 2D 平面地图，不要真实摄影，不要街景，不要建筑特写，不要透视大片。
-目的地：${destination}
-地图焦点：${focus}
+  const modePart = mode ? `探索模式：${mode.label}，画面中用小图标标出${mode.keyword}、步行路径与周边单位。` : ''
+  return `Flat vector travel map infographic, top-down orthographic view, hand drawn line map on warm cream paper.
+Visual style: thin black building outlines, simple grey city blocks, soft green parks, blue road line, red travel route, rounded callout labels, dark bottom caption strip, flipbook page inside a browser-like frame.
+Destination context: ${destination}.
+Map focus: ${focus}.
 ${modePart}
-补充语义：${prompt}`
+Scene semantics: ${prompt}.
+Keep the image clean, diagrammatic, map-like, and suitable for interactive region clicking.`
 }
 
 async function generateMapImage(destination, prompt, context = {}) {
@@ -414,7 +408,7 @@ async function generateMapImage(destination, prompt, context = {}) {
         sequential_image_generation: 'disabled'
       }
     })
-  }, { timeoutMs: 90000, retries: 0 })
+  }, { timeoutMs: 90000, retries: 1 })
 
   if (payload?.code !== 0) {
     const error = new Error(payload?.message || '图片生成失败')
@@ -449,34 +443,118 @@ function areaNameFromPoint(x = 50, y = 50) {
   return `${horizontal}${vertical}`
 }
 
-async function buildAreaInsight(destination, click = {}, mode = 'food') {
+function fallbackMapDataUrl(destination, focus = '城市中轴', mode = 'food') {
+  const config = modeConfig[mode] || modeConfig.food
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+    <defs>
+      <pattern id="blocks" width="112" height="78" patternUnits="userSpaceOnUse">
+        <rect x="10" y="10" width="44" height="20" rx="2" fill="none" stroke="#a6aaa2" stroke-width="2"/>
+        <rect x="64" y="18" width="35" height="18" rx="2" fill="none" stroke="#b8bbb4" stroke-width="2"/>
+        <path d="M0 64H112M104 0V78" stroke="#c9cbc3" stroke-width="2"/>
+      </pattern>
+    </defs>
+    <rect width="1600" height="900" fill="#efeadd"/>
+    <rect x="38" y="38" width="1524" height="824" rx="36" fill="#fbf7ec" stroke="#111" stroke-width="4"/>
+    <rect x="38" y="38" width="1524" height="86" rx="36" fill="#fffdf6" stroke="#111" stroke-width="4"/>
+    <circle cx="76" cy="82" r="11" fill="none" stroke="#c8c2b7" stroke-width="4"/>
+    <circle cx="108" cy="82" r="11" fill="none" stroke="#c8c2b7" stroke-width="4"/>
+    <circle cx="140" cy="82" r="11" fill="none" stroke="#c8c2b7" stroke-width="4"/>
+    <rect x="180" y="58" width="520" height="46" rx="23" fill="#fffdf6" stroke="#111" stroke-width="3"/>
+    <text x="205" y="88" font-family="monospace" font-size="22" font-weight="800" fill="#111">${destination} / ${focus}</text>
+    <rect x="38" y="124" width="1524" height="682" fill="url(#blocks)"/>
+    <rect x="620" y="155" width="360" height="596" fill="#cfe0c0" stroke="#7c986f" stroke-width="4"/>
+    <rect x="690" y="232" width="220" height="128" fill="#ead4b3" stroke="#8c6d46" stroke-width="5"/>
+    <rect x="665" y="520" width="270" height="145" fill="#e8dac1" stroke="#8c6d46" stroke-width="5"/>
+    <path d="M790 156V752" stroke="#d94735" stroke-width="12"/>
+    <path d="M120 476H1480" stroke="#2d79bd" stroke-width="8"/>
+    <path d="M250 680C430 610 520 670 650 590C805 492 930 520 1110 420C1250 340 1350 360 1450 300" fill="none" stroke="#222" stroke-width="4" stroke-dasharray="12 10"/>
+    <rect x="642" y="178" width="315" height="62" rx="10" fill="#fffdf6" stroke="#111" stroke-width="3"/>
+    <text x="666" y="218" font-family="sans-serif" font-size="26" font-weight="900" fill="#111">2D Map Journey</text>
+    <rect x="1020" y="266" width="260" height="58" rx="10" fill="#fffdf6" stroke="#111" stroke-width="3"/>
+    <text x="1040" y="303" font-family="sans-serif" font-size="24" font-weight="900" fill="#111">${config.icon} ${config.label}</text>
+    <circle cx="790" cy="476" r="58" fill="#fffdf6" stroke="#111" stroke-width="4"/>
+    <circle cx="790" cy="476" r="20" fill="${config.color}"/>
+    <rect x="1200" y="665" width="275" height="115" rx="14" fill="#fffdf6" stroke="#111" stroke-width="4"/>
+    <text x="1230" y="705" font-family="sans-serif" font-size="25" font-weight="900" fill="#111">Legend</text>
+    <circle cx="1240" cy="740" r="13" fill="${config.color}"/>
+    <text x="1265" y="748" font-family="sans-serif" font-size="19" fill="#111">POI mode</text>
+    <path d="M1230 765H1460" stroke="#2d79bd" stroke-width="6"/>
+    <text x="1265" y="790" font-family="sans-serif" font-size="19" fill="#111">Route reference</text>
+    <rect x="38" y="806" width="1524" height="56" fill="#222"/>
+    <text x="504" y="842" font-family="sans-serif" font-size="24" font-weight="800" fill="#f7f3e8">Tap anywhere on the page to expand</text>
+  </svg>`
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+async function analyzeMapRegionWithVivo(_params) {
+  // Reserved integration point:
+  // vivo's chat API documents image input via messages[].content image_url + text.
+  // The current build keeps this seam intentionally disabled so the demo does not
+  // depend on model-side VLM permissions. When a confirmed VLM model is available,
+  // implement the request here and return the same JSON shape consumed below:
+  // { areaTitle, summary, visualElements, poiKeywords, routeHints, mapPrompt }.
+  return null
+}
+
+async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl = '') {
   const config = modeConfig[mode] || modeConfig.food
   const x = Number.isFinite(Number(click.x)) ? Math.max(0, Math.min(100, Number(click.x))) : 50
   const y = Number.isFinite(Number(click.y)) ? Math.max(0, Math.min(100, Number(click.y))) : 50
-  const areaTitle = areaNameFromPoint(x, y)
-  const pois = await searchPois(config.keyword, destination, 8)
+  const normalizedClick = { x, y }
+  const vlm = await analyzeMapRegionWithVivo({
+    destination,
+    click: normalizedClick,
+    mode,
+    imageUrl
+  }).catch(error => {
+    console.warn('VLM 区域识别降级:', error.message)
+    return null
+  })
+
+  const areaTitle = safeText(vlm?.areaTitle, areaNameFromPoint(x, y), 30)
+  const poiKeyword = Array.isArray(vlm?.poiKeywords) && vlm.poiKeywords[0]
+    ? safeText(vlm.poiKeywords[0], config.keyword, 40)
+    : config.keyword
+  const pois = await searchPois(poiKeyword, destination, 8)
 
   const route = pois.slice(0, 4).map((poi, index) => ({
     order: index + 1,
     title: poi.name,
-    description: index === 0
-      ? `从${areaTitle}出发，优先确认最近的${config.label}点。`
-      : `继续串联${config.label}备选点，按步行或公共交通调整。`
+    description: vlm?.routeHints?.[index]
+      ? safeText(vlm.routeHints[index], '', 120)
+      : (index === 0
+        ? `从${areaTitle}出发，优先确认最近的${config.label}点。`
+        : `继续串联${config.label}备选点，按步行或公共交通调整。`)
   }))
 
   return {
     area: {
       title: areaTitle,
-      summary: `已根据点击位置识别为${destination}${areaTitle}，并用 vivo POI 搜索附近${config.label}单位。`,
+      summary: safeText(
+        vlm?.summary,
+        `已根据点击位置识别为${destination}${areaTitle}，并用 vivo POI 搜索附近${config.label}单位。`,
+        180
+      ),
       mode,
       modeLabel: config.label,
       icon: config.icon,
+      visualElements: Array.isArray(vlm?.visualElements)
+        ? vlm.visualElements.map(item => safeText(item, '', 24)).filter(Boolean).slice(0, 4)
+        : [],
       x,
       y
     },
     pois,
     route,
-    mapPrompt: `${destination}${areaTitle}${config.label}局部 2D 平面地图，突出${config.keyword}、道路、街区、公园和步行路线，手绘线稿，flipbook 设计`
+    mapPrompt: safeText(
+      vlm?.mapPrompt,
+      `${destination}${areaTitle}${config.label}局部 2D 平面地图，突出${poiKeyword}、道路、街区、公园和步行路线，手绘线稿，flipbook 设计`,
+      700
+    ),
+    vlm: Boolean(vlm),
+    vlmReserved: true
   }
 }
 
@@ -488,6 +566,7 @@ app.get('/api/health', (_req, res) => {
     appId: VIVO_APP_ID ? `${VIVO_APP_ID.slice(0, 4)}••••${VIVO_APP_ID.slice(-2)}` : null,
     models: {
       chat: CHAT_MODEL,
+      vlm: `${VLM_MODEL}（接口预留，当前未启用）`,
       image: IMAGE_MODEL,
       lbs: 'vivo 地理编码（POI 搜索）'
     }
@@ -538,8 +617,11 @@ app.post('/api/panorama-image', async (req, res) => {
     return res.json({ imageUrl, source: 'vivo', model: IMAGE_MODEL })
   } catch (error) {
     console.error('vivo 地图图片生成失败:', error.message)
-    return res.status(error.status || 502).json({
-      error: error.message || 'AI 地图生成失败'
+    return res.status(200).json({
+      imageUrl: fallbackMapDataUrl(destination, safeText(context.focus, '城市中轴', 40), safeText(context.mode, 'food', 20)),
+      source: 'fallback-map',
+      model: 'inline-svg',
+      warning: error.message || 'AI 地图生成失败，已切换为 2D SVG 地图'
     })
   }
 })
@@ -548,13 +630,14 @@ app.post('/api/area-insight', async (req, res) => {
   const destination = safeText(req.body?.destination, '', 40)
   const mode = safeText(req.body?.mode, 'food', 20)
   const click = typeof req.body?.click === 'object' && req.body.click ? req.body.click : {}
+  const imageUrl = safeText(req.body?.imageUrl, '', 1200)
 
   if (destination.length < 2) {
     return res.status(400).json({ error: '缺少有效目的地' })
   }
 
   try {
-    const insight = await buildAreaInsight(destination, click, mode)
+    const insight = await buildAreaInsight(destination, click, mode, imageUrl)
     return res.json(insight)
   } catch (error) {
     console.error('区域 POI 识别失败:', error.message)

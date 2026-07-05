@@ -226,7 +226,7 @@ function PanoramaView({
     })
 
     try {
-      const insight = await exploreMapArea(destination, click, activeMode, guide)
+      const insight = await exploreMapArea(destination, click, activeMode, guide, imageUrl)
       setSelectedArea(insight)
       setImageStatus('generating')
       try {
@@ -535,6 +535,16 @@ function PanoramaView({
             </div>
           </div>
           <p>{selectedArea.area.summary}</p>
+          {selectedArea.vlmReserved && (
+            <div className="reserved-note">
+              视觉识别接口已预留；当前使用点击坐标 + vivo POI 搜索生成参考信息。
+            </div>
+          )}
+          {selectedArea.area.visualElements?.length > 0 && (
+            <div className="hotspot-tags">
+              {selectedArea.area.visualElements.map(item => <span key={item}>识别：{item}</span>)}
+            </div>
+          )}
           {areaLoading ? (
             <div className="area-loading-line">
               <Loader2 size={17} className="spinning" />
