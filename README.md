@@ -39,10 +39,12 @@ npm run dev
 VIVO_APP_ID=your_app_id_here
 VIVO_APP_KEY=your_app_key_here
 VIVO_CHAT_MODEL=Doubao-Seed-2.0-mini
-VIVO_IMAGE_MODEL=Doubao-Seedream-4.0
 VLM_BASE_URL=https://llmapi.paratera.com
 VLM_API_KEY=your_vlm_api_key_here
 VLM_MODEL=Qwen3-VL-30B-A3B-Thinking
+IMAGE_BASE_URL=https://llmapi.paratera.com
+IMAGE_API_KEY=your_image_api_key_here
+IMAGE_MODEL=Doubao-Seedream-4.5
 PORT=3001
 ```
 
@@ -50,7 +52,7 @@ PORT=3001
 
 - `GET /api/health`：服务与模型配置状态。
 - `POST /api/travel-guide`：调用 vivo 大模型生成目的地攻略、热点和路线。
-- `POST /api/panorama-image`：调用 vivo 图片生成，生成视觉画册帧并缓存。
+- `POST /api/panorama-image`：调用 Paratera OpenAI-compatible 图片生成接口，使用 `Doubao-Seedream-4.5` 生成无文字城市地图背景并缓存。
 - `POST /api/area-insight`：接收点击坐标、模式和当前图片；优先调用 VLM 识别图像区域，再结合 vivo POI 搜索返回周边单位与路线参考。若 VLM 不可用，会自动降级为坐标区域识别 + POI 搜索。
 - `GET /api/generated/:file`：读取服务端缓存的生成图片。
 

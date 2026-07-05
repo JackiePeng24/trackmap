@@ -17,7 +17,9 @@ const CHAT_MODEL = process.env.VIVO_CHAT_MODEL?.trim() || 'Doubao-Seed-2.0-mini'
 const VLM_BASE_URL = (process.env.VLM_BASE_URL || process.env.API_BASE_URL || process.env.BASE_URL || 'https://llmapi.paratera.com').trim().replace(/\/+$/, '')
 const VLM_API_KEY = (process.env.VLM_API_KEY || process.env.API_KEY || process.env.PARATERA_API_KEY || '').trim()
 const VLM_MODEL = (process.env.VLM_MODEL || process.env.VIVO_VLM_MODEL || 'Qwen3-VL-30B-A3B-Thinking').trim()
-const IMAGE_MODEL = process.env.VIVO_IMAGE_MODEL?.trim() || 'Doubao-Seedream-4.0'
+const IMAGE_BASE_URL = (process.env.IMAGE_BASE_URL || VLM_BASE_URL).trim().replace(/\/+$/, '')
+const IMAGE_API_KEY = (process.env.IMAGE_API_KEY || VLM_API_KEY).trim()
+const IMAGE_MODEL = (process.env.IMAGE_MODEL || process.env.VIVO_IMAGE_MODEL || 'Doubao-Seedream-4.5').trim()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const generatedDir = path.join(__dirname, 'generated')
 
@@ -322,7 +324,7 @@ function fallbackGuide(destination, vibe) {
       description: '跟随地图节点移动，保留自由探索时间。',
       hotspotTitle: `${destination}${name}`
     })),
-    panoramaPrompt: `${destination} 全景视觉旅游画册，低 UI，手绘旅行插画，局部地图标注，浅米色纸张，红色主轴路线，蓝色道路，绿色公园，圆角标签，flipbook 页面设计，不要真实摄影，不要3D，不要水印`
+    panoramaPrompt: `${destination} 低空等距航拍城市微缩地图背景，柔和晨雾，河流与桥梁，红瓦屋顶，树阵街区，干净现代旅行产品视觉，无文字、无标签、无招牌、无 UI 面板、无水印`
   }
 }
 
@@ -364,17 +366,27 @@ async function normalizeGuide(rawGuide, destination, vibe) {
 }
 
 function buildMapPrompt(destination, prompt, context = {}) {
-  const focus = safeText(context?.focus, '城市中轴与周边街区', 80)
+  const focus = safeText(context?.focus, '城市核心街区', 80)
   const mode = modeConfig[context?.mode] || null
-  const modePart = mode ? `探索模式：${mode.label}。画面中用精致 POI pin、小卡片标签和半透明路径线标出${mode.keyword}、步行路径与周边单位。` : ''
-  return `High-end travel map product concept image, inspired by a polished city-map interface mockup.
-Visual style: low-altitude isometric aerial view, miniature 3D city diorama, soft morning haze, river or road network composition, detailed but clean buildings, bridges, trees, plazas, water reflections when suitable, pastel warm lighting, premium UI overlay.
-Interface layout: full-screen map canvas with floating translucent sidebar buttons, search bar, rounded POI labels, small location pins, zoom controls, and a subtle glassmorphism detail card area; keep the UI elegant and readable, like a modern travel app prototype.
-Destination context: ${destination}.
-Current frame focus: ${focus}.
-${modePart}
-Scene semantics: ${prompt}.
-Composition requirements: 16:9 landscape, clear central landmark or clicked region, surrounding blocks remain explorable, route hints visible but not cluttered. Avoid screenshots of real apps, avoid watermarks, avoid messy text.`
+  const modePart = mode ? `Current exploration mode: ${mode.label}; imply nearby ${mode.keyword} only through icon-like pins, food objects, shop shapes, hotel silhouettes, transit nodes, or route color accents; do not write the mode name.` : ''
+  return `Create a clean background illustration for a travel-map web app. The app itself will overlay all UI and text later, so the generated image must contain NO readable text.
+
+Reference style: low-altitude isometric aerial view, miniature 3D city diorama, polished travel-map concept art, soft haze, warm daylight, river and bridges when suitable, red roofs, compact city blocks, tree-lined roads, plazas, water reflections, gentle depth of field, premium but calm.
+
+Subject:
+- Destination: ${destination}
+- Focus area: ${focus}
+- User intent: ${prompt}
+- ${modePart}
+
+Composition:
+- 16:9 landscape background, wide map canvas, one clear landmark or district focus near the center, surrounding streets and blocks remain explorable.
+- Keep enough empty/soft space near edges for frontend panels and buttons.
+- Use subtle icon-only map pins or simple colored markers if needed, but they must be blank and textless.
+- Do not generate search bars, side panels, cards, legends, captions, labels, title bars, inset maps, screenshots, route-name tags, speech bubbles, or any UI chrome inside the image.
+
+Strict negative prompt:
+no text, no Chinese characters, no English letters, no numbers, no readable labels, no signage, no logo, no watermark, no subtitle, no caption, no map legend, no UI panels, no fake interface, no blurry typography, no random glyphs, no words printed on roads or buildings.`
 }
 
 async function generateMapImage(destination, prompt, context = {}) {
@@ -396,51 +408,73 @@ async function generateMapImage(destination, prompt, context = {}) {
     console.info(`[IMAGE] file cache hit model=${IMAGE_MODEL} destination=${destination} file=${fileName}`)
     return localUrl
   } catch {
-    // File does not exist yet; continue to vivo image generation.
+    // File does not exist yet; continue to Paratera image generation.
   }
 
   const requestId = randomUUID()
   const startedAt = Date.now()
-  console.info(`[IMAGE] request start model=${IMAGE_MODEL} requestId=${requestId} destination=${destination} focus=${safeText(context?.focus, '', 80)}`)
-  const url = new URL('/api/v1/image_generation', VIVO_BASE_URL)
-  url.searchParams.set('module', 'aigc')
-  url.searchParams.set('request_id', requestId)
-  url.searchParams.set('system_time', String(Math.floor(Date.now() / 1000)))
+  console.info(`[IMAGE] request start provider=${IMAGE_BASE_URL} model=${IMAGE_MODEL} requestId=${requestId} destination=${destination} focus=${safeText(context?.focus, '', 80)}`)
+  const imageBodies = [
+    { model: IMAGE_MODEL, prompt: finalPrompt, size: '2560x1440', response_format: 'url', n: 1 },
+    { model: IMAGE_MODEL, prompt: finalPrompt, size: '2048x2048', response_format: 'url', n: 1 },
+    { model: IMAGE_MODEL, prompt: finalPrompt, n: 1 }
+  ]
+  let payload
+  let lastImageError
 
-  const payload = await requestVivoJson(url, {
-    method: 'POST',
-    body: JSON.stringify({
-      model: IMAGE_MODEL,
-      prompt: finalPrompt,
-      parameters: {
-        size: '2560x1440',
-        sequential_image_generation: 'disabled'
+  for (const [index, body] of imageBodies.entries()) {
+    try {
+      payload = await requestOpenAIJson(openAIImagesUrl(IMAGE_BASE_URL), IMAGE_API_KEY, body, { timeoutMs: 120000 })
+      if (index > 0) {
+        console.info(`[IMAGE] request retry success provider=${IMAGE_BASE_URL} model=${IMAGE_MODEL} requestId=${requestId} attempt=${index + 1}`)
       }
-    })
-  }, { timeoutMs: 90000, retries: 1 })
+      break
+    } catch (error) {
+      lastImageError = error
+      console.warn(`[IMAGE] request failed provider=${IMAGE_BASE_URL} model=${IMAGE_MODEL} requestId=${requestId} attempt=${index + 1} status=${error.status || 'n/a'} message=${error.message}`)
+      if (!error.status || ![400, 404, 422].includes(error.status) || index === imageBodies.length - 1) {
+        throw error
+      }
+    }
+  }
 
-  if (payload?.code !== 0) {
-    const error = new Error(payload?.message || '图片生成失败')
-    error.status = payload?.code === 1003 ? 429 : 502
+  if (!payload) {
+    throw lastImageError || new Error('图片生成失败')
+  }
+
+  const imageResult = Array.isArray(payload?.data) ? payload.data[0] : payload?.data?.images?.[0]
+  const remoteUrl = imageResult?.url || payload?.data?.image || payload?.url
+  const b64Json = imageResult?.b64_json || payload?.data?.b64_json || payload?.b64_json
+  let imageBuffer
+
+  if (b64Json) {
+    imageBuffer = Buffer.from(b64Json, 'base64')
+  } else if (typeof remoteUrl === 'string' && remoteUrl.startsWith('data:image/')) {
+    const base64 = remoteUrl.slice(remoteUrl.indexOf(',') + 1)
+    imageBuffer = Buffer.from(base64, 'base64')
+  } else if (remoteUrl) {
+    try {
+      const imageResponse = await fetch(remoteUrl, {
+        signal: AbortSignal.timeout(60000)
+      })
+      if (!imageResponse.ok) {
+        throw new Error(`生成图片下载失败 (${imageResponse.status})`)
+      }
+      imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    } catch (downloadError) {
+      imageCache.set(cacheKey, remoteUrl)
+      console.warn(`[IMAGE] download skipped model=${IMAGE_MODEL} requestId=${requestId} message=${downloadError.message}; using remote url`)
+      console.info(`[IMAGE] request success model=${IMAGE_MODEL} requestId=${requestId} ms=${Date.now() - startedAt} remoteUrl=true`)
+      return remoteUrl
+    }
+  } else {
+    const error = new Error('图片生成成功，但上游没有返回图片 url 或 b64_json')
     error.upstream = payload
-    console.warn(`[IMAGE] request failed model=${IMAGE_MODEL} requestId=${requestId} code=${payload?.code} message=${error.message}`)
     throw error
   }
 
-  const remoteUrl = payload?.data?.images?.[0]?.url || payload?.data?.image
-  if (!remoteUrl) {
-    throw new Error('图片生成成功，但没有返回图片地址')
-  }
-
-  const imageResponse = await fetch(remoteUrl, {
-    signal: AbortSignal.timeout(30000)
-  })
-  if (!imageResponse.ok) {
-    throw new Error('生成图片下载失败')
-  }
-
   await mkdir(generatedDir, { recursive: true })
-  await writeFile(filePath, Buffer.from(await imageResponse.arrayBuffer()))
+  await writeFile(filePath, imageBuffer)
 
   const localUrl = `/api/generated/${fileName}`
   imageCache.set(cacheKey, localUrl)
@@ -454,55 +488,67 @@ function areaNameFromPoint(x = 50, y = 50) {
   return `${horizontal}${vertical}`
 }
 
-function fallbackMapDataUrl(destination, focus = '城市中轴', mode = 'food') {
-  const config = modeConfig[mode] || modeConfig.food
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
-    <defs>
-      <pattern id="blocks" width="112" height="78" patternUnits="userSpaceOnUse">
-        <rect x="10" y="10" width="44" height="20" rx="2" fill="none" stroke="#a6aaa2" stroke-width="2"/>
-        <rect x="64" y="18" width="35" height="18" rx="2" fill="none" stroke="#b8bbb4" stroke-width="2"/>
-        <path d="M0 64H112M104 0V78" stroke="#c9cbc3" stroke-width="2"/>
-      </pattern>
-    </defs>
-    <rect width="1600" height="900" fill="#efeadd"/>
-    <rect x="38" y="38" width="1524" height="824" rx="36" fill="#fbf7ec" stroke="#111" stroke-width="4"/>
-    <rect x="38" y="38" width="1524" height="86" rx="36" fill="#fffdf6" stroke="#111" stroke-width="4"/>
-    <circle cx="76" cy="82" r="11" fill="none" stroke="#c8c2b7" stroke-width="4"/>
-    <circle cx="108" cy="82" r="11" fill="none" stroke="#c8c2b7" stroke-width="4"/>
-    <circle cx="140" cy="82" r="11" fill="none" stroke="#c8c2b7" stroke-width="4"/>
-    <rect x="180" y="58" width="520" height="46" rx="23" fill="#fffdf6" stroke="#111" stroke-width="3"/>
-    <text x="205" y="88" font-family="monospace" font-size="22" font-weight="800" fill="#111">${destination} / ${focus}</text>
-    <rect x="38" y="124" width="1524" height="682" fill="url(#blocks)"/>
-    <rect x="620" y="155" width="360" height="596" fill="#cfe0c0" stroke="#7c986f" stroke-width="4"/>
-    <rect x="690" y="232" width="220" height="128" fill="#ead4b3" stroke="#8c6d46" stroke-width="5"/>
-    <rect x="665" y="520" width="270" height="145" fill="#e8dac1" stroke="#8c6d46" stroke-width="5"/>
-    <path d="M790 156V752" stroke="#d94735" stroke-width="12"/>
-    <path d="M120 476H1480" stroke="#2d79bd" stroke-width="8"/>
-    <path d="M250 680C430 610 520 670 650 590C805 492 930 520 1110 420C1250 340 1350 360 1450 300" fill="none" stroke="#222" stroke-width="4" stroke-dasharray="12 10"/>
-    <rect x="642" y="178" width="315" height="62" rx="10" fill="#fffdf6" stroke="#111" stroke-width="3"/>
-    <text x="666" y="218" font-family="sans-serif" font-size="26" font-weight="900" fill="#111">2D Map Journey</text>
-    <rect x="1020" y="266" width="260" height="58" rx="10" fill="#fffdf6" stroke="#111" stroke-width="3"/>
-    <text x="1040" y="303" font-family="sans-serif" font-size="24" font-weight="900" fill="#111">${config.icon} ${config.label}</text>
-    <circle cx="790" cy="476" r="58" fill="#fffdf6" stroke="#111" stroke-width="4"/>
-    <circle cx="790" cy="476" r="20" fill="${config.color}"/>
-    <rect x="1200" y="665" width="275" height="115" rx="14" fill="#fffdf6" stroke="#111" stroke-width="4"/>
-    <text x="1230" y="705" font-family="sans-serif" font-size="25" font-weight="900" fill="#111">Legend</text>
-    <circle cx="1240" cy="740" r="13" fill="${config.color}"/>
-    <text x="1265" y="748" font-family="sans-serif" font-size="19" fill="#111">POI mode</text>
-    <path d="M1230 765H1460" stroke="#2d79bd" stroke-width="6"/>
-    <text x="1265" y="790" font-family="sans-serif" font-size="19" fill="#111">Route reference</text>
-    <rect x="38" y="806" width="1524" height="56" fill="#222"/>
-    <text x="504" y="842" font-family="sans-serif" font-size="24" font-weight="800" fill="#f7f3e8">Tap anywhere on the page to expand</text>
-  </svg>`
-
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
-}
-
 function openAIChatUrl(baseUrl) {
   return baseUrl.endsWith('/v1')
     ? `${baseUrl}/chat/completions`
     : `${baseUrl}/v1/chat/completions`
+}
+
+function openAIImagesUrl(baseUrl) {
+  return baseUrl.endsWith('/v1')
+    ? `${baseUrl}/images/generations`
+    : `${baseUrl}/v1/images/generations`
+}
+
+async function requestOpenAIJson(url, apiKey, body, {
+  timeoutMs = 90000
+} = {}) {
+  if (!apiKey) {
+    const error = new Error('图片生成 API Key 未配置')
+    error.status = 503
+    throw error
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+    const text = await response.text()
+    let payload
+
+    try {
+      payload = text ? JSON.parse(text) : {}
+    } catch {
+      payload = { message: text || '上游返回了无法解析的响应' }
+    }
+
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || payload?.message || payload?.msg || `OpenAI-compatible request failed (${response.status})`)
+      error.status = response.status
+      error.upstream = payload
+      throw error
+    }
+
+    return payload
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('图片生成响应超时')
+      timeoutError.status = 504
+      throw timeoutError
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function requestVlmJson(body, { timeoutMs = 45000 } = {}) {
@@ -598,7 +644,7 @@ async function analyzeMapRegionWithVivo({ destination, click, mode, imageUrl }) 
   "visualElements": ["图中可见元素1", "图中可见元素2"],
   "poiKeywords": ["用于POI搜索的关键词，优先与${config.label}相关"],
   "routeHints": ["路线建议1", "路线建议2", "路线建议3", "路线建议4"],
-  "mapPrompt": "用于继续生成平面2D地图图片的中文提示词，突出点击区域、${config.label}、道路、建筑、标注和flipbook风格"
+  "mapPrompt": "?????????????????????????????${config.label}????????????????????????????UI??"
 }`
 
   const requestId = randomUUID()
@@ -693,7 +739,7 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
     route,
     mapPrompt: safeText(
       vlm?.mapPrompt,
-      `${destination}${areaTitle}${config.label}局部视觉特写，融合 2D 地图标注，突出${poiKeyword}、道路、街区、公园和步行路线，手绘线稿，flipbook 设计`,
+      `${destination}${areaTitle}${config.label}?????????????????????????????????????????????????????????????????????UI????????????`,
       700
     ),
     vlm: Boolean(vlm),
@@ -716,6 +762,7 @@ app.get('/api/health', (_req, res) => {
       vlm: VLM_API_KEY ? VLM_MODEL : `${VLM_MODEL}（未配置 API Key）`,
       vlmProvider: VLM_API_KEY ? VLM_BASE_URL : null,
       image: IMAGE_MODEL,
+      imageProvider: IMAGE_API_KEY ? IMAGE_BASE_URL : null,
       lbs: 'vivo 地理编码（POI 搜索）'
     }
   })
@@ -762,14 +809,13 @@ app.post('/api/panorama-image', async (req, res) => {
 
   try {
     const imageUrl = await generateMapImage(destination, prompt, context)
-    return res.json({ imageUrl, source: 'vivo', model: IMAGE_MODEL })
+    return res.json({ imageUrl, source: 'paratera', model: IMAGE_MODEL, provider: IMAGE_BASE_URL })
   } catch (error) {
-    console.error('vivo 地图图片生成失败:', error.message)
-    return res.status(200).json({
-      imageUrl: fallbackMapDataUrl(destination, safeText(context.focus, '城市中轴', 40), safeText(context.mode, 'food', 20)),
-      source: 'fallback-map',
-      model: 'inline-svg',
-      warning: error.message || 'AI 地图生成失败，已切换为 2D SVG 地图'
+    console.error('Paratera 地图图片生成失败:', error.message)
+    return res.status(error.status && error.status >= 400 ? error.status : 502).json({
+      error: error.message || 'AI 地图生成失败',
+      source: 'paratera',
+      model: IMAGE_MODEL
     })
   }
 })
@@ -803,7 +849,7 @@ app.post('/api/area-insight', async (req, res) => {
       },
       pois: [],
       route: [],
-      mapPrompt: `${destination}${title}${config.label}局部视觉特写，融合 2D 地图标注，手绘线稿，flipbook 设计`,
+      mapPrompt: `${destination}${title}${config.label}??????????????????????????????????????????????????????UI????????????`,
       warning: 'POI 服务暂时不可用'
     })
   }

@@ -24,7 +24,6 @@ import {
   ZoomOut
 } from 'lucide-react'
 import {
-  createFallbackMapImage,
   exploreMapArea,
   generatePanoramaImage,
   generateTravelGuide
@@ -53,7 +52,7 @@ function PanoramaView({
   const [loadingStep, setLoadingStep] = useState(0)
   const [imageStatus, setImageStatus] = useState('idle')
   const [imageError, setImageError] = useState('')
-  const [imageUrl, setImageUrl] = useState(() => createFallbackMapImage(destination, '城市中轴', 'food'))
+  const [imageUrl, setImageUrl] = useState('')
   const [zoom, setZoom] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -83,7 +82,7 @@ function PanoramaView({
     setFrameStack([])
     setImageStatus('idle')
     setImageError('')
-    setImageUrl(createFallbackMapImage(destination, '城市中轴', activeMode))
+    setImageUrl('')
     setZoom(1)
     setPosition({ x: 0, y: 0 })
 
@@ -129,7 +128,6 @@ function PanoramaView({
             if (!cancelled) {
               setImageStatus('error')
               setImageError(imageGenerationError.message)
-              setImageUrl(createFallbackMapImage(destination, payload.guide.subtitle, activeMode))
             }
           }
         }
@@ -262,8 +260,6 @@ function PanoramaView({
       } catch (imageGenerationError) {
         setImageStatus('error')
         setImageError(imageGenerationError.message)
-        nextImageUrl = createFallbackMapImage(destination, insight.area.title, activeMode)
-        setImageUrl(nextImageUrl)
       }
       setFrameStack(frames => [
         ...frames.slice(-5),
@@ -315,7 +311,6 @@ function PanoramaView({
     } catch (retryError) {
       setImageStatus('error')
       setImageError(retryError.message)
-      setImageUrl(createFallbackMapImage(destination, selectedArea?.area?.title || guide.subtitle, activeMode))
     }
   }
 
