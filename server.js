@@ -184,7 +184,7 @@ async function generateGuideWithVivo(destination, vibe) {
       "hotspotTitle": "关联热点名称"
     }
   ],
-  "panoramaPrompt": "用于文生图的中文提示词：目的地全景视觉画册、低UI、可点击热区、手绘旅行插画、局部地图标注、浅米色纸张、红色主路线、圆角标签、flipbook页面设计，不要水印"
+  "panoramaPrompt": "用于文生图的中文提示词：生成目的地城市全景纯视觉底图，真实感3D城市沙盘或等距鸟瞰视觉画册风格；体现真实地标、水系、街区肌理、建筑风格、地方文化和生活细节；明确要求无UI、无文字、无标签、无按钮、无搜索框、无定位图标、无路线、无卡片、无水印"
 }
 hotspots 必须恰好 5 个，itinerary 必须至少 5 个节点。`
 
@@ -324,7 +324,7 @@ function fallbackGuide(destination, vibe) {
       description: '跟随地图节点移动，保留自由探索时间。',
       hotspotTitle: `${destination}${name}`
     })),
-    panoramaPrompt: `${destination} 低空等距航拍城市微缩地图背景，柔和晨雾，河流与桥梁，红瓦屋顶，树阵街区，干净现代旅行产品视觉，无文字、无标签、无招牌、无 UI 面板、无水印`
+    panoramaPrompt: `${destination} AI漫游向导城市全景纯底图，16:9，高级产品概念图质量，真实感3D城市沙盘，等距鸟瞰视角，体现真实地标、水系、街区肌理、建筑风格和地方文化；自然出现行人、车辆、河流、桥梁、街边小店、绿地和生活细节；纯视觉底图，无UI、无文字、无标签、无按钮、无搜索框、无定位图标、无路线、无卡片、无水印`
   }
 }
 
@@ -366,27 +366,40 @@ async function normalizeGuide(rawGuide, destination, vibe) {
 }
 
 function buildMapPrompt(destination, prompt, context = {}) {
-  const focus = safeText(context?.focus, '城市核心街区', 80)
+  const focus = safeText(context?.focus, '城市核心探索区域', 80)
   const mode = modeConfig[context?.mode] || null
-  const modePart = mode ? `Current exploration mode: ${mode.label}; imply nearby ${mode.keyword} only through icon-like pins, food objects, shop shapes, hotel silhouettes, transit nodes, or route color accents; do not write the mode name.` : ''
-  return `Create a clean background illustration for a travel-map web app. The app itself will overlay all UI and text later, so the generated image must contain NO readable text.
+  const modePart = mode
+    ? `Current exploration theme: ${mode.label}. Express this only through natural city content such as restaurants, food stalls, shop windows, hotel silhouettes, transit entrances, vehicles, pedestrians, lighting, road rhythm, and local street life. Do not use icons, labels, pins, cards, text, or UI hints.`
+    : 'Current exploration theme: general city travel discovery, expressed only through natural landmarks, streets, people, vehicles, water, bridges, greenery, and architectural details.'
 
-Reference style: low-altitude isometric aerial view, miniature 3D city diorama, polished travel-map concept art, soft haze, warm daylight, river and bridges when suitable, red roofs, compact city blocks, tree-lined roads, plazas, water reflections, gentle depth of field, premium but calm.
+  return `You are generating a pure visual base image for an AI travel visual-atlas product. The generated image is only a background canvas. The frontend will add all UI, hotspots, labels, text, route overlays, buttons, cards, and interactions later.
 
-Subject:
-- Destination: ${destination}
-- Focus area: ${focus}
-- User intent: ${prompt}
+City and intent:
+- City / destination: ${destination}
+- Current exploration level: immersive city panorama or zoomed-in exploration background
+- Explored object / focus: ${focus}
+- User travel intent: ${prompt}
 - ${modePart}
 
-Composition:
-- 16:9 landscape background, wide map canvas, one clear landmark or district focus near the center, surrounding streets and blocks remain explorable.
-- Keep enough empty/soft space near edges for frontend panels and buttons.
-- Use subtle icon-only map pins or simple colored markers if needed, but they must be blank and textless.
-- Do not generate search bars, side panels, cards, legends, captions, labels, title bars, inset maps, screenshots, route-name tags, speech bubbles, or any UI chrome inside the image.
+Core visual goal:
+Create a high-end immersive city visual-atlas scene with strong real-city recognizability. The image must not look like a generic city. It should naturally reflect the destination's real landmarks, terrain or water system, street texture, architectural style, local cultural symbols, representative colors, and authentic travel atmosphere.
 
-Strict negative prompt:
-no text, no Chinese characters, no English letters, no numbers, no readable labels, no signage, no logo, no watermark, no subtitle, no caption, no map legend, no UI panels, no fake interface, no blurry typography, no random glyphs, no words printed on roads or buildings.`
+Style:
+premium travel visual atlas, realistic but slightly poetic, isometric aerial city diorama, detailed architecture modeling, real material texture, cinematic composition, soft natural light, atmospheric perspective, warm but refined color palette, rich local life, high-end product concept art, ultra detailed, clean complete background.
+
+Scene requirements:
+1. The city structure should feel believable; major landmark relationships should be roughly reasonable.
+2. Key landmarks should be recognizable and not randomly deformed.
+3. The scene should contain life details: pedestrians, vehicles, bicycles, boats if there is water, street-side shops, green spaces, lights, benches, market stalls, riverbanks, bridges, plazas, or local cultural objects.
+4. Exploration should be implied only through the image content itself: landmarks, street blocks, food stalls, bridges, museums, riversides, old town gates, local neighborhoods, natural scenery, crowd activities, light focus, and road composition.
+5. Keep a 16:9 landscape composition suitable for a web app hero background and visual album cover. The central landmark or focus area should be clear, while surrounding areas remain rich and clickable for later exploration.
+6. Reserve some natural visual breathing room near edges for future frontend overlay, but do not create blank template areas.
+
+Absolute restrictions:
+Do not generate any UI elements. Do not generate text. Do not generate labels. Do not generate buttons, search bars, information cards, map controls, legends, navigation bars, app frames, popups, route dashed lines, arrows, hotspot circles, location pins, POI icons, floating panels, title bars, captions, subtitles, watermarks, logos, readable signage, Chinese characters, English letters, numbers, random glyphs, or fake interface decorations.
+
+Negative prompt:
+no UI, no text, no labels, no buttons, no search bar, no information card, no location marker, no map control, no route line, no popup, no app border, no interface panel, no readable signage, no generic city, no wrong landmark, no mixed-city landmarks, no cyberpunk, no futuristic sci-fi city, no childish cartoon, no low-resolution map collage, no plastic toy look, no messy composition, no random typography, no overexposure, no dark oppressive mood, no cheap illustration style.`
 }
 
 async function generateMapImage(destination, prompt, context = {}) {
@@ -644,7 +657,7 @@ async function analyzeMapRegionWithVivo({ destination, click, mode, imageUrl }) 
   "visualElements": ["图中可见元素1", "图中可见元素2"],
   "poiKeywords": ["用于POI搜索的关键词，优先与${config.label}相关"],
   "routeHints": ["路线建议1", "路线建议2", "路线建议3", "路线建议4"],
-  "mapPrompt": "?????????????????????????????${config.label}????????????????????????????UI??"
+  "mapPrompt": "用于继续生成局部放大纯视觉底图的中文提示词：保持上一帧城市风格、光线、色彩和空间关系，突出点击对象或街区的真实建筑、道路、河岸、树木、人群活动和地方文化；明确禁止UI、文字、标签、按钮、卡片、定位图标、路线虚线、箭头和水印"
 }`
 
   const requestId = randomUUID()
@@ -739,7 +752,7 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
     route,
     mapPrompt: safeText(
       vlm?.mapPrompt,
-      `${destination}${areaTitle}${config.label}?????????????????????????????????????????????????????????????????????UI????????????`,
+      `${destination}${areaTitle}${config.label}局部放大纯视觉底图，保持上一帧城市风格、光线、色彩和空间关系，从等距鸟瞰自然过渡到中景探索视角；突出真实建筑、道路、河岸、树木、店铺、人群活动和地方文化细节；纯底图，无UI、无文字、无标签、无按钮、无卡片、无定位图标、无路线虚线、无箭头、无水印`,
       700
     ),
     vlm: Boolean(vlm),
@@ -849,7 +862,7 @@ app.post('/api/area-insight', async (req, res) => {
       },
       pois: [],
       route: [],
-      mapPrompt: `${destination}${title}${config.label}??????????????????????????????????????????????????????UI????????????`,
+      mapPrompt: `${destination}${title}${config.label}局部放大纯视觉底图，真实感3D城市沙盘与高级旅行画册风格，突出建筑、道路、河流、桥梁、树木、广场、人群和生活细节；不生成任何UI、文字、标签、按钮、卡片、地图控件、定位点、路线、弹窗或水印`,
       warning: 'POI 服务暂时不可用'
     })
   }

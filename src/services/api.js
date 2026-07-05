@@ -59,7 +59,7 @@ function demoGuide(destination, vibe) {
       description: `从${hotspot.category}体验切入，串联下一处地图节点。`,
       hotspotTitle: hotspot.title
     })),
-    panoramaPrompt: `${destination} 低空等距航拍城市微缩地图背景，河流桥梁、红瓦屋顶、树阵街区、柔和晨雾；无文字、无标签、无UI面板、无水印`
+    panoramaPrompt: `${destination} AI漫游向导城市全景纯视觉底图，16:9，真实感3D城市沙盘，等距鸟瞰视角，体现真实地标、水系、街区肌理、建筑风格和地方文化；自然出现行人、车辆、桥梁、绿地和生活细节；无UI、无文字、无标签、无按钮、无搜索框、无定位图标、无路线、无卡片、无水印`
   }
 }
 
@@ -91,7 +91,7 @@ function demoAreaInsight(destination, click, mode) {
       title: poi.name,
       description: index === 0 ? '从当前点击区域出发' : `继续前往${modeInfo.label}备选点`
     })),
-    mapPrompt: `${destination}${title}${modeInfo.label}局部放大，低空等距城市微缩地图背景，只保留建筑道路河流树木和无文字图钉；无文字、无标签、无UI面板`
+    mapPrompt: `${destination}${title}${modeInfo.label}局部放大纯视觉底图，保持上一帧城市风格和空间关系，突出真实建筑、道路、河岸、树木、店铺、人群活动和地方文化；无UI、无文字、无标签、无按钮、无卡片、无定位图标、无路线、无水印`
   }
 }
 
