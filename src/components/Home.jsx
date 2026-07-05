@@ -1,225 +1,180 @@
 import { useMemo, useState } from 'react'
 import {
   ArrowRight,
+  Building2,
+  Coffee,
   Compass,
+  Heart,
+  Hotel,
+  Map,
   MapPin,
-  Navigation,
   Search,
-  Sparkles
+  Train
 } from 'lucide-react'
 
-const categories = ['全部', '热门', '美食', '城市', '自然', '文化']
-
 const quickDestinations = [
-  {
-    name: '北京',
-    emoji: '🏛️',
-    tag: '热门',
-    caption: '皇城中轴与胡同烟火',
-    image: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=900&q=82'
-  },
-  {
-    name: '成都',
-    emoji: '🐼',
-    tag: '美食',
-    caption: '在茶馆与巷子里慢下来',
-    image: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=900&q=82'
-  },
-  {
-    name: '杭州',
-    emoji: '🌸',
-    tag: '自然',
-    caption: '湖山相映的东方诗意',
-    image: 'https://images.unsplash.com/photo-1599571234909-29ed5d1321d6?w=900&q=82'
-  },
-  {
-    name: '西安',
-    emoji: '🏺',
-    tag: '文化',
-    caption: '城墙内外一眼千年',
-    image: 'https://images.unsplash.com/photo-1591122947157-26bad3a117d2?w=900&q=82'
-  },
-  {
-    name: '上海',
-    emoji: '🌃',
-    tag: '城市',
-    caption: '海派建筑与城市天际线',
-    image: 'https://images.unsplash.com/photo-1537531383496-f4749b8032cf?w=900&q=82'
-  },
-  {
-    name: '三亚',
-    emoji: '🏖️',
-    tag: '自然',
-    caption: '热带海岸的松弛假日',
-    image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=900&q=82'
-  }
+  { name: '北京', note: '中轴线、胡同与博物馆', image: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=1000&q=82' },
+  { name: '杭州', note: '西湖、河坊街与湖山路线', image: 'https://images.unsplash.com/photo-1599571234909-29ed5d1321d6?w=1000&q=82' },
+  { name: '成都', note: '茶馆、小吃与慢行街区', image: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=1000&q=82' },
+  { name: '西安', note: '城墙、博物馆与夜游', image: 'https://images.unsplash.com/photo-1591122947157-26bad3a117d2?w=1000&q=82' }
 ]
 
-function Home({ onSearch }) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('全部')
-  const [validation, setValidation] = useState('')
+const modes = [
+  { id: '综合', label: '综合', icon: Compass },
+  { id: '美食', label: '美食', icon: Coffee },
+  { id: '住宿', label: '住宿', icon: Hotel },
+  { id: '交通', label: '交通', icon: Train },
+  { id: '购物', label: '购物', icon: Building2 }
+]
 
-  const destinations = useMemo(() => {
-    if (selectedCategory === '全部') return quickDestinations
-    return quickDestinations.filter(item => item.tag === selectedCategory)
-  }, [selectedCategory])
+function Home({ onSearch, savedPlaces, planItems, health, onExploreSaved, onToggleSaved }) {
+  const [keyword, setKeyword] = useState('')
+  const [mode, setMode] = useState('综合')
+  const [message, setMessage] = useState('')
 
-  const submitSearch = (event) => {
-    event?.preventDefault()
-    const destination = searchQuery.trim()
+  const recentPlan = useMemo(() => planItems.slice(0, 4), [planItems])
 
+  const submit = (event) => {
+    event.preventDefault()
+    const destination = keyword.trim()
     if (destination.length < 2) {
-      setValidation('请输入至少两个字的目的地')
+      setMessage('请输入至少两个字的目的地或关键词')
       return
     }
-
-    setValidation('')
-    onSearch(destination, selectedCategory)
-  }
-
-  const chooseDestination = (destination) => {
-    setSearchQuery(destination.name)
-    setValidation('')
-    onSearch(destination.name, destination.tag)
+    setMessage('')
+    onSearch(destination, mode)
   }
 
   return (
-    <main className="home-page">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-
-      <section className="hero-section">
-        <div className="hero-copy fade-in">
-          <div className="provider-pill">
-            <span className="provider-dot" />
-            vivo 蓝心大模型 · 视觉流生成 · POI 识别
-          </div>
-          <p className="eyebrow">INFINITE VISUAL TRAVEL</p>
-          <h1>
-            规划旅行，
-            <span>像翻开一本活的画册。</span>
-          </h1>
-          <p className="hero-description">
-            输入目的地，AI 先生成一帧全景视觉画面；点击画面任意区域，就继续展开下一帧特写、周边地点与路线灵感。
+    <main className="home-workspace">
+      <section className="search-stage">
+        <div className="search-copy">
+          <p className="eyebrow">AI TRAVEL MAP</p>
+          <h1>输入关键词，生成可点击的 2D 旅行地图</h1>
+          <p>
+            首层呈现道路、河流与景点轮廓；点击地标进入精细页，再围绕景点查看酒店、交通、美食和商场，并把地点加入规划。
           </p>
+        </div>
 
-          <form className="hero-search" onSubmit={submitSearch}>
-            <MapPin size={22} aria-hidden="true" />
+        <form className="search-console" onSubmit={submit}>
+          <div className="search-input-row">
+            <MapPin size={21} />
             <input
-              aria-label="搜索目的地"
-              type="text"
-              value={searchQuery}
+              value={keyword}
               onChange={(event) => {
-                setSearchQuery(event.target.value)
-                if (validation) setValidation('')
+                setKeyword(event.target.value)
+                if (message) setMessage('')
               }}
-              placeholder="想从哪里开始？例如：天津、泉州、阿勒泰"
+              placeholder="例如：南京夫子庙、上海外滩、成都宽窄巷子"
+              aria-label="输入旅行关键词"
             />
-            <button type="submit" aria-label="生成漫游画卷">
-              <Search size={19} />
-              <span>生成首帧</span>
-              <ArrowRight size={18} />
+            <button type="submit">
+              <Search size={18} />
+              生成地图
             </button>
-          </form>
-          <div className="search-meta">
-            <span className={validation ? 'validation-message visible' : 'validation-message'}>
-              {validation || '所见即所得：先看见，再深入，再生成路线'}
-            </span>
-            <span>AI 画面与路线仅供旅行灵感参考</span>
           </div>
+          <div className="mode-row" aria-label="初始探索偏好">
+            {modes.map(item => {
+              const Icon = item.icon
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={mode === item.id ? 'active' : ''}
+                  onClick={() => setMode(item.id)}
+                >
+                  <Icon size={17} />
+                  {item.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className={message ? 'form-message warning' : 'form-message'}>
+            {message || (health?.configured ? '后端已连接，可调用模型与 POI 服务' : '未检测到完整密钥时会自动使用降级数据')}
+          </p>
+        </form>
+      </section>
 
-          <div className="filter-row" aria-label="目的地分类">
-            {categories.map(category => (
-              <button
-                type="button"
-                key={category}
-                className={selectedCategory === category ? 'filter-pill active' : 'filter-pill'}
-                onClick={() => setSelectedCategory(category)}
-              >
-                {category}
+      <section className="dashboard-grid">
+        <div className="map-preview-panel">
+          <div className="mini-map">
+            <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1200&q=82" alt="" />
+            <div className="mini-map-caption">
+              <strong>AI 图文地图</strong>
+              <span>道路、河流、建筑插画和景点标牌由模型直接生成</span>
+            </div>
+          </div>
+          <div className="preview-copy">
+            <strong>三层地图流</strong>
+            <span>城市底图 {'->'} 景点精细页 {'->'} 地点详情 / 路线规划</span>
+          </div>
+        </div>
+
+        <div className="quick-panel">
+          <div className="panel-heading">
+            <Map size={18} />
+            <strong>快速开始</strong>
+          </div>
+          <div className="destination-list">
+            {quickDestinations.map(item => (
+              <button type="button" key={item.name} onClick={() => onSearch(item.name, mode)}>
+                <img src={item.image} alt="" />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{item.note}</small>
+                </span>
+                <ArrowRight size={18} />
               </button>
             ))}
           </div>
         </div>
 
-        <div className="hero-orbit fade-in delay-one" aria-hidden="true">
-          <div className="orbit-card orbit-main">
-            <div className="orbit-image" />
-            <div className="orbit-caption">
-              <span>今日灵感</span>
-              <strong>点击画面，继续生成下一帧</strong>
+        <div className="quick-panel">
+          <div className="panel-heading">
+            <Heart size={18} />
+            <strong>已保存地点</strong>
+          </div>
+          {savedPlaces.length ? (
+            <div className="saved-list">
+              {savedPlaces.slice(0, 5).map(place => (
+                <div className="saved-row" key={place}>
+                  <button type="button" onClick={() => onExploreSaved(place, '收藏')}>
+                    <MapPin size={16} />
+                    <span>{place}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`取消收藏${place}`}
+                    onClick={() => onToggleSaved(place)}
+                  >
+                    <Heart size={15} fill="currentColor" />
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
-          <div className="floating-note note-one">
-            <Sparkles size={17} />
-            AI 像素流渲染
-          </div>
-          <div className="floating-note note-two">
-            <Navigation size={17} />
-            意图-视觉-深入
-          </div>
-          <div className="orbit-ring ring-one" />
-          <div className="orbit-ring ring-two" />
-        </div>
-      </section>
-
-      <section className="destination-section">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">CURATED DESTINATIONS</p>
-            <h2>{selectedCategory === '全部' ? '从一座城市开始' : `${selectedCategory}目的地`}</h2>
-          </div>
-          <p>点开一张卡片，让 AI 生成首帧画面，再从任意细节继续探索。</p>
+          ) : (
+            <p className="empty-copy">进入地图后可保存目的地。</p>
+          )}
         </div>
 
-        <div className="destination-grid">
-          {destinations.map((destination, index) => (
-            <button
-              type="button"
-              className="destination-card"
-              key={destination.name}
-              onClick={() => chooseDestination(destination)}
-              style={{ '--card-delay': `${index * 55}ms` }}
-            >
-              <img src={destination.image} alt="" />
-              <span className="destination-overlay" />
-              <span className="destination-tag">{destination.tag}</span>
-              <span className="destination-content">
-                <span className="destination-emoji">{destination.emoji}</span>
-                <strong>{destination.name}</strong>
-                <small>{destination.caption}</small>
-              </span>
-              <span className="destination-arrow">
-                <ArrowRight size={19} />
-              </span>
-            </button>
-          ))}
+        <div className="quick-panel">
+          <div className="panel-heading">
+            <Compass size={18} />
+            <strong>当前规划</strong>
+          </div>
+          {recentPlan.length ? (
+            <ol className="plan-preview">
+              {recentPlan.map(item => (
+                <li key={item.id}>
+                  <span>{item.type}</span>
+                  <strong>{item.name}</strong>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="empty-copy">点击地图中的景点或周边地点即可加入。</p>
+          )}
         </div>
-      </section>
-
-      <section className="capability-section">
-        <article>
-          <span className="capability-icon"><Sparkles size={22} /></span>
-          <div>
-            <strong>意图理解</strong>
-            <p>基于 vivo 蓝心大模型，把目的地和偏好转成可延展的视觉叙事。</p>
-          </div>
-        </article>
-        <article>
-          <span className="capability-icon"><Compass size={22} /></span>
-          <div>
-            <strong>视觉深入</strong>
-            <p>点击任意画面区域，生成局部画面、周边单位和下一步路线。</p>
-          </div>
-        </article>
-        <article>
-          <span className="capability-icon"><Navigation size={22} /></span>
-          <div>
-            <strong>低 UI 漫游</strong>
-            <p>辅助控件可隐藏，让规划过程更接近 PPT 中的纯视觉浏览器。</p>
-          </div>
-        </article>
       </section>
     </main>
   )

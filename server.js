@@ -25,6 +25,8 @@ const generatedDir = path.join(__dirname, 'generated')
 
 const guideCache = new Map()
 const imageCache = new Map()
+const imagePendingCache = new Map()
+const landmarkReferenceCache = new Map()
 
 const hotspotPositions = [
   { x: 22, y: 36 },
@@ -35,10 +37,38 @@ const hotspotPositions = [
 ]
 
 const modeConfig = {
-  shopping: { label: '购物', keyword: '购物中心', icon: '🛍️', color: '#f06d4f' },
-  stay: { label: '住宿', keyword: '酒店', icon: '🏨', color: '#7f62d9' },
-  transit: { label: '交通', keyword: '地铁站', icon: '🚇', color: '#2e7ecb' },
-  food: { label: '饮食', keyword: '餐厅', icon: '🥢', color: '#d28a20' }
+  shopping: {
+    label: '购物',
+    keyword: '购物中心',
+    queries: ['购物中心', '商场', '商业街', '百货', '奥特莱斯', '步行街'],
+    include: /购物|商场|商城|商业|百货|步行街|奥特莱斯|市场|店|零售|广场/,
+    icon: '🛍️',
+    color: '#f06d4f'
+  },
+  stay: {
+    label: '住宿',
+    keyword: '酒店',
+    queries: ['酒店', '宾馆', '民宿', '旅馆', '公寓酒店', '青年旅舍'],
+    include: /酒店|宾馆|旅馆|住宿|民宿|客栈|公寓|旅舍|招待所/,
+    icon: '🏨',
+    color: '#7f62d9'
+  },
+  transit: {
+    label: '交通',
+    keyword: '地铁站',
+    queries: ['地铁站', '公交站', '火车站', '汽车站', '停车场', '交通枢纽'],
+    include: /地铁|公交|车站|火车|高铁|汽车站|交通|停车|码头|机场|枢纽/,
+    icon: '🚇',
+    color: '#2e7ecb'
+  },
+  food: {
+    label: '饮食',
+    keyword: '餐厅',
+    queries: ['餐厅', '小吃', '美食', '咖啡', '火锅', '天津菜', '老字号'],
+    include: /餐饮|餐厅|小吃|美食|咖啡|火锅|菜|面|饭|酒楼|饭店|茶|甜品|奶茶|烧烤|早点/,
+    icon: '🥢',
+    color: '#d28a20'
+  }
 }
 
 app.use(cors())
@@ -224,6 +254,7 @@ function normalizePoi(poi, index) {
     address: safeText(poi?.address, '', 140),
     phone: safeText(poi?.phone, '', 60),
     typeName: safeText(poi?.typeName || poi?.type, '', 80),
+    photoUrl: safeText(poi?.photoUrl || poi?.photos?.[0]?.url || poi?.photos?.[0], '', 300),
     coordinates: longitude && latitude ? { longitude, latitude } : null
   }
 }
@@ -365,6 +396,51 @@ async function normalizeGuide(rawGuide, destination, vibe) {
   }
 }
 
+function cityLandmarkTarget(keyword, city) {
+  const text = safeText(keyword, city, 80)
+  const isDistrictScale = /区|县|镇|乡|街道|街区|景区|公园|广场|博物馆|古镇|古街|商圈|车站|机场|大学/.test(text)
+  const isCityScale = text === city || text.includes(`${city}旅游`) || text.includes(`${city}景点`) || text.includes(`${city}攻略`)
+  const municipality = ['北京', '上海', '天津', '重庆'].includes(city)
+
+  if (isDistrictScale) return 10
+  if (municipality && isCityScale) return 18
+  if (isCityScale) return 16
+  return 12
+}
+
+async function enrichCityLandmarks(city, keyword, guidePois) {
+  const targetCount = cityLandmarkTarget(keyword, city)
+  const pois = [...guidePois]
+  const seen = new Set(pois.map(poi => safeText(poi.name, '', 80).replace(/\s+/g, '')))
+  const pageSize = Math.min(20, Math.max(10, targetCount))
+  const queries = [
+    `${city} 著名景点`,
+    `${city} 地标建筑`,
+    `${city} 旅游景区`,
+    `${city} 历史文化景点`,
+    `${city} 博物馆 公园 观光`,
+    `${safeText(keyword, city, 80)} 必去景点`
+  ]
+
+  const batches = await Promise.allSettled([
+    ...queries.map(query => searchPois(query, city, pageSize))
+  ])
+
+  for (const batch of batches) {
+    if (batch.status !== 'fulfilled') continue
+    for (const rawPoi of batch.value) {
+      const poi = publicPoi(rawPoi, pois.length, 'landmark')
+      const key = safeText(poi.name, '', 80).replace(/\s+/g, '')
+      if (!poi.lng || !poi.lat || seen.has(key)) continue
+      seen.add(key)
+      pois.push(poi)
+      if (pois.length >= targetCount) return pois
+    }
+  }
+
+  return pois
+}
+
 function buildMapPrompt(destination, prompt, context = {}) {
   const focus = safeText(context?.focus, '城市核心探索区域', 80)
   const mode = modeConfig[context?.mode] || null
@@ -396,10 +472,129 @@ Scene requirements:
 6. Reserve some natural visual breathing room near edges for future frontend overlay, but do not create blank template areas.
 
 Absolute restrictions:
-Do not generate any UI elements. Do not generate text. Do not generate labels. Do not generate buttons, search bars, information cards, map controls, legends, navigation bars, app frames, popups, route dashed lines, arrows, hotspot circles, location pins, POI icons, floating panels, title bars, captions, subtitles, watermarks, logos, readable signage, Chinese characters, English letters, numbers, random glyphs, or fake interface decorations.
+Do not generate any UI elements. Do not generate text. Do not generate labels. Do not generate buttons, search bars, information cards, map controls, legends, navigation bars, app frames, popups, route dashed lines, arrows, hotspot circles, location pins, POI icons, floating panels, title bars, captions, subtitles, watermarks, logos, readable signage, Chinese characters, English letters, numbers, random glyphs, fake characters, garbled text, pseudo-Chinese strokes, shop signs with readable or unreadable writing, or fake interface decorations.
 
 Negative prompt:
-no UI, no text, no labels, no buttons, no search bar, no information card, no location marker, no map control, no route line, no popup, no app border, no interface panel, no readable signage, no generic city, no wrong landmark, no mixed-city landmarks, no cyberpunk, no futuristic sci-fi city, no childish cartoon, no low-resolution map collage, no plastic toy look, no messy composition, no random typography, no overexposure, no dark oppressive mood, no cheap illustration style.`
+no UI, no text, no labels, no letters, no numbers, no captions, no signage, no shop sign text, no random glyphs, no garbled text, no pseudo Chinese, no unreadable typography, no buttons, no search bar, no information card, no location marker, no map control, no route line, no popup, no app border, no interface panel, no readable signage, no generic city, no wrong landmark, no mixed-city landmarks, no cyberpunk, no futuristic sci-fi city, no childish cartoon, no low-resolution map collage, no plastic toy look, no messy composition, no random typography, no overexposure, no dark oppressive mood, no cheap illustration style.`
+}
+
+async function fetchLandmarkReference(city, poi) {
+  const name = safeText(poi?.name, '', 80)
+  const cacheKey = `${city}:${name}`
+  if (!name) return null
+  if (landmarkReferenceCache.has(cacheKey)) return landmarkReferenceCache.get(cacheKey)
+
+  const reference = await (async () => {
+    const candidates = [`${city}${name}`, name]
+    for (const title of candidates) {
+      try {
+        const url = `https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
+        const response = await fetch(url, {
+          headers: { Accept: 'application/json', 'User-Agent': 'xingji-travel-guide/1.0' },
+          signal: AbortSignal.timeout(5000)
+        })
+        if (!response.ok) continue
+        const payload = await response.json()
+        const extract = safeText(payload?.extract, '', 260)
+        const imageUrl = safeText(payload?.thumbnail?.source || payload?.originalimage?.source || '', '', 300)
+        if (extract || imageUrl) return { extract, imageUrl, source: 'wikipedia' }
+      } catch {
+        // Continue with the next candidate.
+      }
+    }
+
+    return {
+      extract: `${name} 位于 ${city}。地址线索：${safeText(poi?.address, '', 120)}。类型：${safeText(poi?.typeName, '地标景点', 80)}。`,
+      imageUrl: safeText(poi?.photoUrl, '', 300),
+      source: poi?.photoUrl ? 'poi-photo' : 'poi-text'
+    }
+  })()
+
+  landmarkReferenceCache.set(cacheKey, reference)
+  return reference
+}
+
+function buildMarkerPrompt(city, poi, reference = null) {
+  return `为旅行地图生成一个“${safeText(poi?.name, '地标景点', 80)}”的地标建筑/景点小图。
+城市：${city}
+地点类型：${safeText(poi?.typeName || poi?.type, '地标景点', 80)}
+地址线索：${safeText(poi?.address, '城市核心区域', 120)}
+联网参考摘要：${safeText(reference?.extract, '无公开摘要时请严格依据地点名称、城市和地址线索生成。', 260)}
+参考实景图链接线索：${safeText(reference?.imageUrl, '无', 300)}
+
+画面要求：
+- 正方形构图，主体必须占画面 75% 以上，是该地标或景点最有辨识度的建筑轮廓、入口牌楼、桥梁、塔楼、摩天轮、馆舍或代表性景观
+- 像高级旅行手账贴纸、精致景点插画、轻微等距视角，边缘有轻微立体阴影
+- 主体完整清楚，色彩和结构特征鲜明，适合放大显示在真实地图 Marker 上
+- 背景干净，边缘留白，明亮高级，避免大面积空白
+- 不要出现任何文字、乱码、伪中文、字母、数字、招牌文字、按钮、地图路线、定位图钉、UI 卡片、商标、水印`
+}
+
+function withPendingImage(cacheKey, producer) {
+  if (imagePendingCache.has(cacheKey)) return imagePendingCache.get(cacheKey)
+  const pending = Promise.resolve()
+    .then(producer)
+    .finally(() => imagePendingCache.delete(cacheKey))
+  imagePendingCache.set(cacheKey, pending)
+  return pending
+}
+
+async function generateLandmarkMarkerImage(city, poi) {
+  const reference = await fetchLandmarkReference(city, poi)
+  const prompt = buildMarkerPrompt(city, poi, reference)
+  const cacheKey = `${IMAGE_MODEL}:marker-v3:${city}:${safeText(poi?.name, '', 80)}:${prompt}`
+  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)
+
+  return withPendingImage(cacheKey, async () => {
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)
+
+    const digest = createHash('sha256').update(cacheKey).digest('hex').slice(0, 16)
+    const fileName = `marker-${digest}.jpg`
+    const filePath = path.join(generatedDir, fileName)
+
+    try {
+      await access(filePath)
+      const localUrl = `/api/generated/${fileName}`
+      imageCache.set(cacheKey, localUrl)
+      return localUrl
+    } catch {
+      // Continue to generation.
+    }
+
+    const requestId = randomUUID()
+    console.info(`[MARKER_IMAGE] request start model=${IMAGE_MODEL} requestId=${requestId} city=${city} poi=${safeText(poi?.name, '', 80)}`)
+    const payload = await requestOpenAIJson(openAIImagesUrl(IMAGE_BASE_URL), IMAGE_API_KEY, {
+      model: IMAGE_MODEL,
+      prompt,
+      size: '2048x2048',
+      response_format: 'url',
+      n: 1
+    }, { timeoutMs: 120000 })
+
+    const imageResult = Array.isArray(payload?.data) ? payload.data[0] : payload?.data?.images?.[0]
+    const remoteUrl = imageResult?.url || payload?.data?.image || payload?.url
+    const b64Json = imageResult?.b64_json || payload?.data?.b64_json || payload?.b64_json
+    let imageBuffer
+
+    if (b64Json) {
+      imageBuffer = Buffer.from(b64Json, 'base64')
+    } else if (typeof remoteUrl === 'string' && remoteUrl.startsWith('data:image/')) {
+      imageBuffer = Buffer.from(remoteUrl.slice(remoteUrl.indexOf(',') + 1), 'base64')
+    } else if (remoteUrl) {
+      const imageResponse = await fetch(remoteUrl, { signal: AbortSignal.timeout(60000) })
+      if (!imageResponse.ok) throw new Error(`Marker 图片下载失败 (${imageResponse.status})`)
+      imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    } else {
+      throw new Error('Marker 图片生成成功，但上游没有返回图片 url 或 b64_json')
+    }
+
+    await mkdir(generatedDir, { recursive: true })
+    await writeFile(filePath, imageBuffer)
+    const localUrl = `/api/generated/${fileName}`
+    imageCache.set(cacheKey, localUrl)
+    console.info(`[MARKER_IMAGE] request success model=${IMAGE_MODEL} requestId=${requestId} file=${fileName}`)
+    return localUrl
+  })
 }
 
 async function generateMapImage(destination, prompt, context = {}) {
@@ -409,6 +604,9 @@ async function generateMapImage(destination, prompt, context = {}) {
     console.info(`[IMAGE] cache hit model=${IMAGE_MODEL} destination=${destination} focus=${safeText(context?.focus, '', 80)}`)
     return imageCache.get(cacheKey)
   }
+
+  return withPendingImage(cacheKey, async () => {
+    if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)
 
   const digest = createHash('sha256').update(cacheKey).digest('hex').slice(0, 16)
   const fileName = `${digest}.jpg`
@@ -493,6 +691,7 @@ async function generateMapImage(destination, prompt, context = {}) {
   imageCache.set(cacheKey, localUrl)
   console.info(`[IMAGE] request success model=${IMAGE_MODEL} requestId=${requestId} ms=${Date.now() - startedAt} file=${fileName}`)
   return localUrl
+  })
 }
 
 function areaNameFromPoint(x = 50, y = 50) {
@@ -764,6 +963,123 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
   }
 }
 
+function guessCity(keyword) {
+  const text = safeText(keyword, '天津', 60)
+  const known = ['北京', '上海', '天津', '重庆', '杭州', '成都', '西安', '南京', '苏州', '广州', '深圳', '武汉', '长沙', '厦门', '泉州']
+  return known.find(city => text.includes(city)) || text.replace(/一日游|夜景|小吃|旅行|旅游|攻略|路线/g, '').slice(0, 12) || '天津'
+}
+
+function poiToLngLat(poi) {
+  const lng = Number(poi?.coordinates?.longitude ?? poi?.lng)
+  const lat = Number(poi?.coordinates?.latitude ?? poi?.lat)
+  return Number.isFinite(lng) && Number.isFinite(lat) ? { lng, lat } : null
+}
+
+function publicPoi(poi, index, type = 'landmark') {
+  const point = poiToLngLat(poi)
+  return {
+    id: poi?.id || `poi-${index + 1}`,
+    name: safeText(poi?.name || poi?.title, `推荐地点 ${index + 1}`, 80),
+    type,
+    typeName: safeText(poi?.typeName || poi?.category || type, type, 80),
+    address: safeText(poi?.address, '', 160),
+    phone: safeText(poi?.phone, '', 60),
+    lng: point?.lng,
+    lat: point?.lat,
+    photoUrl: safeText(poi?.photoUrl, '', 300),
+    icon: poi?.icon || '📍',
+    duration: poi?.duration || '45-90 分钟'
+  }
+}
+
+function poiDistanceMeters(centerPoi, poi) {
+  const centerLng = Number(centerPoi?.lng)
+  const centerLat = Number(centerPoi?.lat)
+  const lng = Number(poi?.lng)
+  const lat = Number(poi?.lat)
+  if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat) || !Number.isFinite(lng) || !Number.isFinite(lat)) return null
+  return Math.round(Math.sqrt((lng - centerLng) ** 2 + (lat - centerLat) ** 2) * 100000)
+}
+
+async function searchModePois(city, centerPoi, mode) {
+  const config = modeConfig[mode] || modeConfig.food
+  const centerName = safeText(centerPoi?.name, city, 50)
+  const queries = [
+    ...config.queries.map(keyword => `${centerName} ${keyword}`),
+    ...config.queries.map(keyword => `${city} ${keyword}`)
+  ]
+  const batches = await Promise.allSettled(queries.map(query => searchPois(query, city, 12)))
+  const seen = new Set()
+  const publicPois = []
+
+  for (const batch of batches) {
+    if (batch.status !== 'fulfilled') continue
+    for (const rawPoi of batch.value) {
+      const item = publicPoi(rawPoi, publicPois.length, mode)
+      const haystack = `${item.name} ${item.typeName} ${item.address}`
+      if (!item.lng || !item.lat || !config.include.test(haystack)) continue
+      const key = `${item.name}:${item.lng}:${item.lat}`
+      if (seen.has(key)) continue
+      seen.add(key)
+
+      const distance = poiDistanceMeters(centerPoi, item)
+      if (distance !== null) {
+        const dx = Number(item.lng) - Number(centerPoi.lng)
+        const dy = Number(item.lat) - Number(centerPoi.lat)
+        item.bearing = Math.round((Math.atan2(dy, dx) * 180) / Math.PI)
+        item.distance = distance
+      }
+      publicPois.push(item)
+    }
+  }
+
+  return publicPois
+    .sort((a, b) => (a.distance ?? 999999) - (b.distance ?? 999999))
+    .slice(0, 12)
+}
+
+function scenePrompt({ sceneType, city, centerPoi, place, mode }) {
+  const config = modeConfig[mode] || modeConfig.food
+  if (sceneType === 'landmark-center') {
+    const target = centerPoi || place || {}
+    return `生成一张“${safeText(target.name, '中心景点', 80)}”的清晰地标建筑主视觉图。
+城市：${city}
+地点类型：${safeText(target.typeName || target.type, '地标景点', 40)}
+要求：
+- 主体必须是该景点最有辨识度的建筑、桥梁、塔楼、入口、摩天轮、馆舍或代表性景观
+- 构图居中，主体完整，占画面主要区域
+- 明亮、精致、旅行画册质感，适合覆盖在真实地图中心
+- 不要出现任何文字、乱码、伪中文、字母、数字、招牌文字、按钮、地图路线、定位图钉、UI 卡片、商标、水印`
+  }
+
+  if (sceneType === 'place-detail') {
+    const target = place || centerPoi || {}
+    return `生成一张“${safeText(target.name, '旅行地点', 80)}”的精细旅游详情插画。
+城市：${city}
+地点类型：${safeText(target.typeName || target.type, '地点', 40)}
+要求：
+- 突出地点的视觉特征和游览氛围
+- 风格与上一层保持一致
+- 不要出现任何文字、乱码、伪中文、字母、数字、招牌文字
+- 不要出现按钮
+- 适合作为详情页主视觉背景`
+  }
+
+  return `生成一张以“${safeText(centerPoi?.name, '中心景点', 80)}”为中心的 2D 旅游视觉探索图。
+城市：${city}
+场景：${config.label}探索
+要求：
+- 画面中心突出 ${safeText(centerPoi?.name, '中心景点', 80)} 的代表性外观
+- 周围留出空间，方便前端叠加美食、酒店、交通、购物等卡片
+- 风格为年轻化旅行画册、明亮、干净、轻微等距视角
+- 不要出现文字
+- 不要出现乱码、伪中文、字母、数字或招牌文字
+- 不要出现按钮
+- 不要生成地图道路文字
+- 不要生成真实地图标注
+- 画面适合作为网页交互背景`
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
@@ -779,6 +1095,180 @@ app.get('/api/health', (_req, res) => {
       lbs: 'vivo 地理编码（POI 搜索）'
     }
   })
+})
+
+app.post('/api/city-scene', async (req, res) => {
+  const keyword = safeText(req.body?.keyword || req.body?.destination, '', 80)
+  const vibe = safeText(req.body?.vibe, '综合', 30)
+  if (keyword.length < 2) {
+    return res.status(400).json({ error: '请输入至少两个字的关键词' })
+  }
+
+  const city = guessCity(keyword)
+  try {
+    const { rawGuide } = await generateGuideWithVivo(city, vibe)
+    const guide = await normalizeGuide(rawGuide, city, vibe)
+    const guidePois = guide.hotspots.map((poi, index) => publicPoi(poi, index, 'landmark')).filter(poi => poi.lng && poi.lat)
+    const pois = await enrichCityLandmarks(city, keyword, guidePois)
+    if (!pois.length) throw new Error('未获得可用经纬度 POI')
+    const center = pois.reduce((acc, poi) => ({ lng: acc.lng + poi.lng / pois.length, lat: acc.lat + poi.lat / pois.length }), { lng: 0, lat: 0 })
+    return res.json({ city, query: keyword, center, pois, source: 'vivo' })
+  } catch (error) {
+    console.error('city-scene failed:', error.message)
+    return res.status(502).json({
+      error: '城市 POI 生成失败',
+      detail: error.message || '未知错误',
+      stage: 'city-scene'
+    })
+  }
+})
+
+app.post('/api/landmark-marker-image', async (req, res) => {
+  const city = safeText(req.body?.city, '当前城市', 40)
+  const poi = typeof req.body?.poi === 'object' && req.body.poi ? req.body.poi : null
+  if (!poi?.name) {
+    return res.status(400).json({ error: '缺少需要生成图片的 POI' })
+  }
+
+  try {
+    const imageUrl = await generateLandmarkMarkerImage(city, poi)
+    return res.json({ imageUrl, source: 'vivo-ai-marker' })
+  } catch (error) {
+    console.error('landmark-marker-image failed:', error.message)
+    return res.status(502).json({
+      error: '地标 Marker 生图失败',
+      detail: error.message || '未知错误',
+      stage: 'landmark-marker-image',
+      poi: safeText(poi.name, '', 80)
+    })
+  }
+})
+
+app.post('/api/poi-around', async (req, res) => {
+  const city = safeText(req.body?.city, '天津', 40)
+  const mode = safeText(req.body?.mode, 'food', 20)
+  const centerPoi = typeof req.body?.centerPoi === 'object' && req.body.centerPoi ? req.body.centerPoi : {}
+
+  try {
+    const publicPois = await searchModePois(city, centerPoi, mode)
+    if (!publicPois.length) throw new Error('周边 POI 为空')
+    return res.json({ city, centerPoi, mode, pois: publicPois, source: 'vivo' })
+  } catch (error) {
+    console.error('poi-around failed:', error.message)
+    return res.status(502).json({
+      error: '周边 POI 检索失败',
+      detail: error.message || '未知错误',
+      stage: 'poi-around',
+      city,
+      centerPoi,
+      mode
+    })
+  }
+})
+
+app.post('/api/scene-image', async (req, res) => {
+  const city = safeText(req.body?.city, '', 40)
+  const sceneType = safeText(req.body?.sceneType, 'poi-around', 30)
+  const prompt = scenePrompt({
+    sceneType,
+    city,
+    centerPoi: req.body?.centerPoi,
+    place: req.body?.place,
+    mode: req.body?.mode
+  })
+
+  try {
+    const imageUrl = await generateMapImage(city || '旅行', prompt, {
+      focus: req.body?.place?.name || req.body?.centerPoi?.name || sceneType,
+      mode: req.body?.mode,
+      sceneType
+    })
+    return res.json({ imageUrl, source: 'vivo-ai', prompt })
+  } catch (error) {
+    console.error('scene-image failed:', error.message)
+    return res.status(502).json({
+      error: 'AI 生图失败',
+      detail: error.message || '未知错误',
+      stage: 'scene-image',
+      prompt
+    })
+  }
+})
+
+app.post('/api/route-plan', async (req, res) => {
+  const city = safeText(req.body?.city, '当前城市', 40)
+  const places = Array.isArray(req.body?.places) ? req.body.places : []
+  const fallbackPlan = {
+    city,
+    title: `${city}${places.length}站旅行路线`,
+    overview: places.length
+      ? `按照当前行程草案串联 ${places.map(place => safeText(place?.name, '', 30)).filter(Boolean).join('、')}，建议根据实际交通和营业时间微调。`
+      : '请先加入地点，再生成路线方案。',
+    duration: places.length >= 5 ? '1日' : places.length >= 3 ? '半日-1日' : '2-4小时',
+    transport: '步行/公共交通',
+    steps: places.map((place, index) => ({
+      order: index + 1,
+      title: safeText(place?.name, `地点 ${index + 1}`, 80),
+      description: index === 0 ? '作为出发点，确认交通方式。' : '按当前顺序前往，实际出行前核对距离与营业时间。',
+      transport: index === 0 ? '出发前确认定位和开放状态' : '近距离步行，跨区优先公共交通或网约车'
+    })),
+    notes: [
+      '路线根据已选地点顺序生成，可在行程抽屉里拖动式上移下移调整。',
+      '跨区移动建议优先选择地铁、公交或网约车。',
+      '热门景点请提前确认预约、闭馆日和夜间开放时间。',
+      '餐饮点建议安排在午餐或晚餐时段，住宿点建议作为路线收尾或中途休整点。'
+    ]
+  }
+
+  if (!places.length) return res.json(fallbackPlan)
+
+  try {
+    const requestId = randomUUID()
+    const url = new URL('/v1/chat/completions', VIVO_BASE_URL)
+    url.searchParams.set('requestId', requestId)
+    const payload = await requestVivoJson(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        model: CHAT_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: '你是旅行路线规划助手。只返回 JSON，不要 Markdown。字段：title, overview, duration, transport, steps, notes。steps 为数组，每项含 order,title,description,transport。notes 为注意事项数组。'
+          },
+          {
+            role: 'user',
+            content: `城市：${city}\n地点顺序：${places.map((place, index) => `${index + 1}. ${safeText(place?.name, '', 80)}（${safeText(place?.type, '地点', 30)}，${safeText(place?.address, '', 120)}，停留${safeText(place?.duration, '30-60分钟', 30)}）`).join('\n')}\n请生成清晰的路线信息、交通衔接和注意事项。`
+          }
+        ],
+        reasoning_effort: 'minimal',
+        temperature: 0.45,
+        max_tokens: 1600,
+        stream: false
+      })
+    }, { timeoutMs: 45000, retries: 1 })
+    const raw = parseJsonObject(payload?.choices?.[0]?.message?.content)
+    return res.json({
+      city,
+      title: safeText(raw?.title, fallbackPlan.title, 80),
+      overview: safeText(raw?.overview, fallbackPlan.overview, 220),
+      duration: safeText(raw?.duration, fallbackPlan.duration, 40),
+      transport: safeText(raw?.transport, fallbackPlan.transport, 60),
+      steps: Array.isArray(raw?.steps) && raw.steps.length
+        ? raw.steps.slice(0, places.length).map((step, index) => ({
+          order: Number(step?.order) || index + 1,
+          title: safeText(step?.title, places[index]?.name || `地点 ${index + 1}`, 80),
+          description: safeText(step?.description, fallbackPlan.steps[index]?.description || '按当前顺序前往。', 180),
+          transport: safeText(step?.transport, fallbackPlan.steps[index]?.transport || '确认交通方式', 100)
+        }))
+        : fallbackPlan.steps,
+      notes: Array.isArray(raw?.notes) && raw.notes.length
+        ? raw.notes.slice(0, 6).map(note => safeText(note, '', 160)).filter(Boolean)
+        : fallbackPlan.notes
+    })
+  } catch (error) {
+    console.warn('route-plan fallback:', error.message)
+    return res.json({ ...fallbackPlan, warning: error.message })
+  }
 })
 
 app.post('/api/travel-guide', async (req, res) => {
