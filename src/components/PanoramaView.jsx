@@ -604,9 +604,24 @@ function PanoramaView({
             </div>
           </div>
           <p>{selectedArea.area.summary}</p>
+          <div className={selectedArea.vlm ? 'model-call-note active' : 'model-call-note'}>
+            <strong>VLM</strong>
+            {selectedArea.vlm
+              ? `已调用 ${selectedArea.vlmModel || '视觉模型'}`
+              : selectedArea.vlmReserved
+                ? `未调用：${selectedArea.vlmModel || 'VLM'} 未配置 API Key`
+                : `已配置 ${selectedArea.vlmModel || 'VLM'}，本次识别降级`}
+            {selectedArea.vlmProvider && <small>{selectedArea.vlmProvider}</small>}
+            {selectedArea.vlmWarning && <small>降级原因：{selectedArea.vlmWarning}</small>}
+          </div>
           {selectedArea.vlmReserved && (
             <div className="reserved-note">
               视觉识别接口已预留；当前使用点击坐标 + vivo POI 搜索生成参考信息。
+            </div>
+          )}
+          {!selectedArea.vlmReserved && !selectedArea.vlm && (
+            <div className="reserved-note">
+              VLM 已配置但本次调用失败或图片不可用，已自动切换为点击坐标 + POI 搜索。
             </div>
           )}
           {selectedArea.area.visualElements?.length > 0 && (

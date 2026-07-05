@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { createHash, randomUUID } from 'node:crypto'
-import { access, mkdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,8 +14,10 @@ const VIVO_BASE_URL = 'https://api-ai.vivo.com.cn'
 const VIVO_APP_ID = process.env.VIVO_APP_ID?.trim()
 const VIVO_APP_KEY = process.env.VIVO_APP_KEY?.trim()
 const CHAT_MODEL = process.env.VIVO_CHAT_MODEL?.trim() || 'Doubao-Seed-2.0-mini'
-const VLM_MODEL = process.env.VIVO_VLM_MODEL?.trim() || 'reserved'
-const IMAGE_MODEL = process.env.VIVO_IMAGE_MODEL?.trim() || 'Doubao-Seedream-4.5'
+const VLM_BASE_URL = (process.env.VLM_BASE_URL || process.env.API_BASE_URL || process.env.BASE_URL || 'https://llmapi.paratera.com').trim().replace(/\/+$/, '')
+const VLM_API_KEY = (process.env.VLM_API_KEY || process.env.API_KEY || process.env.PARATERA_API_KEY || '').trim()
+const VLM_MODEL = (process.env.VLM_MODEL || process.env.VIVO_VLM_MODEL || 'Qwen3-VL-30B-A3B-Thinking').trim()
+const IMAGE_MODEL = process.env.VIVO_IMAGE_MODEL?.trim() || 'Doubao-Seedream-4.0'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const generatedDir = path.join(__dirname, 'generated')
 
@@ -364,20 +366,24 @@ async function normalizeGuide(rawGuide, destination, vibe) {
 function buildMapPrompt(destination, prompt, context = {}) {
   const focus = safeText(context?.focus, '城市中轴与周边街区', 80)
   const mode = modeConfig[context?.mode] || null
-  const modePart = mode ? `探索模式：${mode.label}，画面中用小图标标出${mode.keyword}、步行路径与周边单位。` : ''
-  return `Immersive visual travel atlas frame, low UI, hand drawn travel illustration mixed with a clean 2D map overlay on warm cream paper.
-Visual style: destination panorama, recognizable local landmarks, thin black building outlines, soft green parks, blue road line, red travel route, rounded callout labels, dark bottom caption strip, flipbook page inside a browser-like frame.
+  const modePart = mode ? `探索模式：${mode.label}。画面中用精致 POI pin、小卡片标签和半透明路径线标出${mode.keyword}、步行路径与周边单位。` : ''
+  return `High-end travel map product concept image, inspired by a polished city-map interface mockup.
+Visual style: low-altitude isometric aerial view, miniature 3D city diorama, soft morning haze, river or road network composition, detailed but clean buildings, bridges, trees, plazas, water reflections when suitable, pastel warm lighting, premium UI overlay.
+Interface layout: full-screen map canvas with floating translucent sidebar buttons, search bar, rounded POI labels, small location pins, zoom controls, and a subtle glassmorphism detail card area; keep the UI elegant and readable, like a modern travel app prototype.
 Destination context: ${destination}.
 Current frame focus: ${focus}.
 ${modePart}
 Scene semantics: ${prompt}.
-Keep the image clean, explorable, cinematic but not photorealistic, and suitable for clicking any region to unfold the next frame.`
+Composition requirements: 16:9 landscape, clear central landmark or clicked region, surrounding blocks remain explorable, route hints visible but not cluttered. Avoid screenshots of real apps, avoid watermarks, avoid messy text.`
 }
 
 async function generateMapImage(destination, prompt, context = {}) {
   const finalPrompt = buildMapPrompt(destination, prompt, context)
   const cacheKey = `${IMAGE_MODEL}:${destination}:${finalPrompt}`
-  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey)
+  if (imageCache.has(cacheKey)) {
+    console.info(`[IMAGE] cache hit model=${IMAGE_MODEL} destination=${destination} focus=${safeText(context?.focus, '', 80)}`)
+    return imageCache.get(cacheKey)
+  }
 
   const digest = createHash('sha256').update(cacheKey).digest('hex').slice(0, 16)
   const fileName = `${digest}.jpg`
@@ -387,12 +393,15 @@ async function generateMapImage(destination, prompt, context = {}) {
     await access(filePath)
     const localUrl = `/api/generated/${fileName}`
     imageCache.set(cacheKey, localUrl)
+    console.info(`[IMAGE] file cache hit model=${IMAGE_MODEL} destination=${destination} file=${fileName}`)
     return localUrl
   } catch {
     // File does not exist yet; continue to vivo image generation.
   }
 
   const requestId = randomUUID()
+  const startedAt = Date.now()
+  console.info(`[IMAGE] request start model=${IMAGE_MODEL} requestId=${requestId} destination=${destination} focus=${safeText(context?.focus, '', 80)}`)
   const url = new URL('/api/v1/image_generation', VIVO_BASE_URL)
   url.searchParams.set('module', 'aigc')
   url.searchParams.set('request_id', requestId)
@@ -414,6 +423,7 @@ async function generateMapImage(destination, prompt, context = {}) {
     const error = new Error(payload?.message || '图片生成失败')
     error.status = payload?.code === 1003 ? 429 : 502
     error.upstream = payload
+    console.warn(`[IMAGE] request failed model=${IMAGE_MODEL} requestId=${requestId} code=${payload?.code} message=${error.message}`)
     throw error
   }
 
@@ -434,6 +444,7 @@ async function generateMapImage(destination, prompt, context = {}) {
 
   const localUrl = `/api/generated/${fileName}`
   imageCache.set(cacheKey, localUrl)
+  console.info(`[IMAGE] request success model=${IMAGE_MODEL} requestId=${requestId} ms=${Date.now() - startedAt} file=${fileName}`)
   return localUrl
 }
 
@@ -488,14 +499,139 @@ function fallbackMapDataUrl(destination, focus = '城市中轴', mode = 'food') 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
 
-async function analyzeMapRegionWithVivo(_params) {
-  // Reserved integration point:
-  // vivo's chat API documents image input via messages[].content image_url + text.
-  // The current build keeps this seam intentionally disabled so the demo does not
-  // depend on model-side VLM permissions. When a confirmed VLM model is available,
-  // implement the request here and return the same JSON shape consumed below:
-  // { areaTitle, summary, visualElements, poiKeywords, routeHints, mapPrompt }.
-  return null
+function openAIChatUrl(baseUrl) {
+  return baseUrl.endsWith('/v1')
+    ? `${baseUrl}/chat/completions`
+    : `${baseUrl}/v1/chat/completions`
+}
+
+async function requestVlmJson(body, { timeoutMs = 45000 } = {}) {
+  if (!VLM_API_KEY || !VLM_MODEL || VLM_MODEL.toLowerCase() === 'reserved') {
+    return null
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(openAIChatUrl(VLM_BASE_URL), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${VLM_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    })
+    const text = await response.text()
+    let payload
+
+    try {
+      payload = text ? JSON.parse(text) : {}
+    } catch {
+      payload = { message: text || 'VLM upstream returned an unreadable response' }
+    }
+
+    if (!response.ok) {
+      const error = new Error(payload?.error?.message || payload?.message || `VLM request failed (${response.status})`)
+      error.status = response.status
+      error.upstream = payload
+      throw error
+    }
+
+    return payload
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('VLM response timed out')
+      timeoutError.status = 504
+      throw timeoutError
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function imageUrlToVisionUrl(imageUrl) {
+  if (!imageUrl) return ''
+  if (/^data:image\/(?!svg\+xml)/i.test(imageUrl)) return imageUrl
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl
+
+  const match = imageUrl.match(/^\/api\/generated\/([^/?#]+)$/)
+  if (!match) return ''
+
+  const fileName = path.basename(match[1])
+  const filePath = path.join(generatedDir, fileName)
+  const buffer = await readFile(filePath)
+  const ext = path.extname(fileName).toLowerCase()
+  const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
+  return `data:${mime};base64,${buffer.toString('base64')}`
+}
+
+async function analyzeMapRegionWithVivo({ destination, click, mode, imageUrl }) {
+  if (!VLM_API_KEY || !VLM_MODEL || VLM_MODEL.toLowerCase() === 'reserved') {
+    console.info(`[VLM] skipped model=${VLM_MODEL || 'unset'} reason=missing-api-key-or-reserved`)
+    return null
+  }
+
+  const visionUrl = await imageUrlToVisionUrl(imageUrl).catch(error => {
+    console.warn('VLM image loading degraded:', error.message)
+    return ''
+  })
+
+  if (!visionUrl) {
+    console.info(`[VLM] skipped model=${VLM_MODEL} reason=no-supported-image imageUrl=${imageUrl ? 'provided' : 'empty'}`)
+    return null
+  }
+
+  const config = modeConfig[mode] || modeConfig.food
+  const prompt = `你是旅行地图视觉识别助手。请识别用户点击的地图区域，并给出后续生图与路线参考。
+
+目的地：${destination}
+点击位置：x=${click.x}%, y=${click.y}%
+当前模式：${config.label}
+
+只返回 JSON，不要 Markdown。JSON 结构：
+{
+  "areaTitle": "点击区域的短名称，10字以内",
+  "summary": "结合图片内容和点击位置说明该区域适合怎么玩，80字以内",
+  "visualElements": ["图中可见元素1", "图中可见元素2"],
+  "poiKeywords": ["用于POI搜索的关键词，优先与${config.label}相关"],
+  "routeHints": ["路线建议1", "路线建议2", "路线建议3", "路线建议4"],
+  "mapPrompt": "用于继续生成平面2D地图图片的中文提示词，突出点击区域、${config.label}、道路、建筑、标注和flipbook风格"
+}`
+
+  const requestId = randomUUID()
+  const startedAt = Date.now()
+  console.info(`[VLM] request start model=${VLM_MODEL} provider=${VLM_BASE_URL} requestId=${requestId} destination=${destination} click=${click.x},${click.y} mode=${mode}`)
+
+  try {
+    const payload = await requestVlmJson({
+      model: VLM_MODEL,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: visionUrl } },
+            { type: 'text', text: prompt }
+          ]
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 900,
+      stream: false
+    })
+
+    if (!payload) return null
+
+    const content = payload?.choices?.[0]?.message?.content
+    const parsed = parseJsonObject(content)
+    console.info(`[VLM] request success model=${VLM_MODEL} requestId=${requestId} ms=${Date.now() - startedAt}`)
+    return parsed
+  } catch (error) {
+    console.warn(`[VLM] request failed model=${VLM_MODEL} requestId=${requestId} status=${error.status || 'n/a'} message=${error.message}`)
+    throw error
+  }
 }
 
 async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl = '') {
@@ -503,6 +639,7 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
   const x = Number.isFinite(Number(click.x)) ? Math.max(0, Math.min(100, Number(click.x))) : 50
   const y = Number.isFinite(Number(click.y)) ? Math.max(0, Math.min(100, Number(click.y))) : 50
   const normalizedClick = { x, y }
+  let vlmWarning = ''
   const vlm = await analyzeMapRegionWithVivo({
     destination,
     click: normalizedClick,
@@ -510,6 +647,7 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
     imageUrl
   }).catch(error => {
     console.warn('VLM 区域识别降级:', error.message)
+    vlmWarning = error.message || 'VLM unavailable'
     return null
   })
 
@@ -517,7 +655,12 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
   const poiKeyword = Array.isArray(vlm?.poiKeywords) && vlm.poiKeywords[0]
     ? safeText(vlm.poiKeywords[0], config.keyword, 40)
     : config.keyword
-  const pois = await searchPois(poiKeyword, destination, 8)
+  let poiWarning = ''
+  const pois = await searchPois(poiKeyword, destination, 8).catch(error => {
+    console.warn('POI search degraded:', error.message)
+    poiWarning = error.message || 'POI service unavailable'
+    return []
+  })
 
   const route = pois.slice(0, 4).map((poi, index) => ({
     order: index + 1,
@@ -554,7 +697,11 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
       700
     ),
     vlm: Boolean(vlm),
-    vlmReserved: true
+    vlmReserved: !VLM_API_KEY || VLM_MODEL.toLowerCase() === 'reserved',
+    vlmModel: VLM_MODEL,
+    vlmProvider: VLM_API_KEY ? VLM_BASE_URL : null,
+    vlmWarning: vlmWarning || undefined,
+    warning: poiWarning || undefined
   }
 }
 
@@ -566,7 +713,8 @@ app.get('/api/health', (_req, res) => {
     appId: VIVO_APP_ID ? `${VIVO_APP_ID.slice(0, 4)}••••${VIVO_APP_ID.slice(-2)}` : null,
     models: {
       chat: CHAT_MODEL,
-      vlm: `${VLM_MODEL}（接口预留，当前未启用）`,
+      vlm: VLM_API_KEY ? VLM_MODEL : `${VLM_MODEL}（未配置 API Key）`,
+      vlmProvider: VLM_API_KEY ? VLM_BASE_URL : null,
       image: IMAGE_MODEL,
       lbs: 'vivo 地理编码（POI 搜索）'
     }
