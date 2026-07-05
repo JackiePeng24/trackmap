@@ -90,7 +90,7 @@ function demoGuide(destination, vibe) {
     title: `${destination}${name}`,
     category: categories[index],
     icon: icons[index],
-    description: `以 2D 地图视角呈现${destination}${name}，可继续点击周边区域展开。`,
+    description: `以视觉画册视角呈现${destination}${name}，可继续点击周边区域展开。`,
     tags: [theme, categories[index]],
     duration: index === 0 ? '约 2 小时' : '约 1 小时',
     bestTime: index === 4 ? '日落后' : '白天',
@@ -102,12 +102,12 @@ function demoGuide(destination, vibe) {
 
   return {
     destination,
-    subtitle: '2D 地图漫游',
-    overview: '仿 flipbook 的平面地图探索：点击任意区域后，可按购物、住宿、交通、饮食模式查看周边单位并继续生成局部地图。',
+    subtitle: '无限视觉画册',
+    overview: '仿 flipbook 的视觉流探索：点击任意区域后，可按购物、住宿、交通、饮食模式查看周边单位并继续生成下一帧。',
     accent: '#f06d4f',
     quickFacts: [
-      { label: '地图风格', value: '2D 手绘' },
-      { label: '交互方式', value: '点击扩展' },
+      { label: '画面风格', value: '视觉画册' },
+      { label: '交互方式', value: '点击续帧' },
       { label: 'POI 模式', value: '四类切换' }
     ],
     hotspots,
@@ -117,7 +117,7 @@ function demoGuide(destination, vibe) {
       description: `从${hotspot.category}体验切入，串联下一处地图节点。`,
       hotspotTitle: hotspot.title
     })),
-    panoramaPrompt: `${destination} 2D 平面旅行地图，手绘线稿，米色纸张，红色主轴，蓝色道路，绿色公园，flipbook 页面设计`
+    panoramaPrompt: `${destination} 全景视觉旅游画册，低 UI，手绘旅行插画，局部地图标注，米色纸张，红色主轴，蓝色道路，绿色公园，flipbook 页面设计`
   }
 }
 
@@ -149,7 +149,7 @@ function demoAreaInsight(destination, click, mode) {
       title: poi.name,
       description: index === 0 ? '从当前点击区域出发' : `继续前往${modeInfo.label}备选点`
     })),
-    mapPrompt: `${destination}${title}${modeInfo.label}局部 2D 平面地图，手绘线稿，flipbook 设计`
+    mapPrompt: `${destination}${title}${modeInfo.label}局部视觉特写，融合 2D 地图标注，手绘线稿，flipbook 设计`
   }
 }
 

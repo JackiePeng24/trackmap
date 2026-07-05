@@ -165,25 +165,25 @@ function ProfileView() {
     <main className="utility-page about-page">
       <div className="utility-heading">
         <p className="eyebrow">ABOUT XINGJI</p>
-        <h1>让 AI 成为旅途的开场</h1>
-        <p>行迹不是一份千篇一律的清单，而是一幅可以走进去的城市画卷。</p>
+        <h1>让旅行规划变成视觉流</h1>
+        <p>行迹把“搜索-列表-详情”改写为“意图-视觉-深入”：先生成画面，再从画面里继续走下去。</p>
       </div>
 
       <section className="tech-grid">
         <article>
           <span><Cpu size={24} /></span>
           <strong>蓝心大模型</strong>
-          <p>理解目的地与偏好，编排有节奏的旅行叙事。</p>
+          <p>理解目的地与偏好，输出首帧画册、热点与路线 JSON。</p>
         </article>
         <article>
           <span><MapPin size={24} /></span>
           <strong>vivo LBS</strong>
-          <p>核验真实 POI，补充地址、坐标和地点类别。</p>
+          <p>按饮食、购物、住宿和交通模式补充真实 POI 信息。</p>
         </article>
         <article>
           <span><Image size={24} /></span>
           <strong>图片生成</strong>
-          <p>把地标、氛围与光影融合成专属旅行画卷。</p>
+          <p>把全景、局部特写和路线提示连续渲染成视觉帧。</p>
         </article>
         <article>
           <span><ShieldCheck size={24} /></span>

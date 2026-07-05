@@ -150,7 +150,7 @@ async function generateGuideWithVivo(destination, vibe) {
   const url = new URL('/v1/chat/completions', VIVO_BASE_URL)
   url.searchParams.set('requestId', requestId)
 
-  const systemPrompt = `你是“行迹”AI 2D 地图漫游设计师。请为用户生成真实、可执行、适合手绘平面地图呈现的一日旅行方案。
+  const systemPrompt = `你是“行迹”AI 无限视觉旅游规划设计师。请为用户生成真实、可执行、适合“全景视觉画册 + 可点击深入帧”呈现的一日旅行方案。
 只返回 JSON 对象，不要 Markdown，不要解释。JSON 结构必须严格如下：
 {
   "destination": "规范目的地名称",
@@ -180,13 +180,13 @@ async function generateGuideWithVivo(destination, vibe) {
       "hotspotTitle": "关联热点名称"
     }
   ],
-  "panoramaPrompt": "用于文生图的中文提示词：2D平面地图、手绘线稿、浅米色纸张、正交俯视、建筑轮廓、绿色公园、红色主路线、蓝色道路、圆角标签、flipbook页面设计，不要真实摄影、不要3D、不要水印"
+  "panoramaPrompt": "用于文生图的中文提示词：目的地全景视觉画册、低UI、可点击热区、手绘旅行插画、局部地图标注、浅米色纸张、红色主路线、圆角标签、flipbook页面设计，不要水印"
 }
 hotspots 必须恰好 5 个，itinerary 必须至少 5 个节点。`
 
   const userPrompt = `目的地：${destination}
 偏好：${vibe || '综合地图漫游'}
-请生成一份像城市手绘导览图一样的旅行方案，保留可点击探索的地图节点。`
+请生成一份像“无限视觉旅游画册”一样的旅行方案，保留可点击探索的画面节点。`
 
   const payload = await requestVivoJson(url, {
     method: 'POST',
@@ -291,13 +291,13 @@ function fallbackGuide(destination, vibe) {
 
   return {
     destination,
-    subtitle: vibe && vibe !== '全部' ? `${vibe}地图漫游` : '2D 地图漫游',
-    overview: `以平面手绘地图的方式打开${destination}，点击任意区域继续生成局部地图与周边 POI。`,
+    subtitle: vibe && vibe !== '全部' ? `${vibe}视觉漫游` : '无限视觉画册',
+    overview: `以全景插画与局部地图标注打开${destination}，点击任意区域继续生成下一帧特写与周边 POI。`,
     accent: '#f06d4f',
     quickFacts: [
-      { label: '地图风格', value: '2D 手绘' },
+      { label: '画面风格', value: '视觉画册' },
       { label: '建议时长', value: '1 天' },
-      { label: '推荐玩法', value: '点击扩展' }
+      { label: '推荐玩法', value: '点击续帧' }
     ],
     hotspots: names.map((name, index) => ({
       id: `fallback-${index + 1}`,
@@ -320,7 +320,7 @@ function fallbackGuide(destination, vibe) {
       description: '跟随地图节点移动，保留自由探索时间。',
       hotspotTitle: `${destination}${name}`
     })),
-    panoramaPrompt: `${destination} 2D 平面旅行地图，手绘线稿，浅米色纸张，红色主轴路线，蓝色道路，绿色公园，圆角标签，flipbook 页面设计，不要真实摄影，不要3D，不要水印`
+    panoramaPrompt: `${destination} 全景视觉旅游画册，低 UI，手绘旅行插画，局部地图标注，浅米色纸张，红色主轴路线，蓝色道路，绿色公园，圆角标签，flipbook 页面设计，不要真实摄影，不要3D，不要水印`
   }
 }
 
@@ -339,7 +339,7 @@ async function normalizeGuide(rawGuide, destination, vibe) {
     ? rawGuide.itinerary.slice(0, 6).map((item, index) => ({
       time: safeText(item?.time, `${String(9 + index * 2).padStart(2, '0')}:00`, 12),
       title: safeText(item?.title, hotspots[index % hotspots.length].title, 60),
-      description: safeText(item?.description, '沿着地图路线继续探索。', 120),
+      description: safeText(item?.description, '沿着视觉线索继续探索。', 120),
       hotspotTitle: safeText(item?.hotspotTitle, hotspots[index % hotspots.length].title, 60)
     }))
     : fallback.itinerary
@@ -365,13 +365,13 @@ function buildMapPrompt(destination, prompt, context = {}) {
   const focus = safeText(context?.focus, '城市中轴与周边街区', 80)
   const mode = modeConfig[context?.mode] || null
   const modePart = mode ? `探索模式：${mode.label}，画面中用小图标标出${mode.keyword}、步行路径与周边单位。` : ''
-  return `Flat vector travel map infographic, top-down orthographic view, hand drawn line map on warm cream paper.
-Visual style: thin black building outlines, simple grey city blocks, soft green parks, blue road line, red travel route, rounded callout labels, dark bottom caption strip, flipbook page inside a browser-like frame.
+  return `Immersive visual travel atlas frame, low UI, hand drawn travel illustration mixed with a clean 2D map overlay on warm cream paper.
+Visual style: destination panorama, recognizable local landmarks, thin black building outlines, soft green parks, blue road line, red travel route, rounded callout labels, dark bottom caption strip, flipbook page inside a browser-like frame.
 Destination context: ${destination}.
-Map focus: ${focus}.
+Current frame focus: ${focus}.
 ${modePart}
 Scene semantics: ${prompt}.
-Keep the image clean, diagrammatic, map-like, and suitable for interactive region clicking.`
+Keep the image clean, explorable, cinematic but not photorealistic, and suitable for clicking any region to unfold the next frame.`
 }
 
 async function generateMapImage(destination, prompt, context = {}) {
@@ -550,7 +550,7 @@ async function buildAreaInsight(destination, click = {}, mode = 'food', imageUrl
     route,
     mapPrompt: safeText(
       vlm?.mapPrompt,
-      `${destination}${areaTitle}${config.label}局部 2D 平面地图，突出${poiKeyword}、道路、街区、公园和步行路线，手绘线稿，flipbook 设计`,
+      `${destination}${areaTitle}${config.label}局部视觉特写，融合 2D 地图标注，突出${poiKeyword}、道路、街区、公园和步行路线，手绘线稿，flipbook 设计`,
       700
     ),
     vlm: Boolean(vlm),
@@ -597,7 +597,7 @@ app.post('/api/travel-guide', async (req, res) => {
     return res.status(200).json({
       guide: fallbackGuide(destination, vibe),
       source: 'fallback',
-      warning: 'AI 服务暂时繁忙，已切换为本地地图路线。',
+      warning: 'AI 服务暂时繁忙，已切换为本地视觉路线。',
       cached: false
     })
   }
@@ -655,7 +655,7 @@ app.post('/api/area-insight', async (req, res) => {
       },
       pois: [],
       route: [],
-      mapPrompt: `${destination}${title}${config.label}局部 2D 平面地图，手绘线稿，flipbook 设计`,
+      mapPrompt: `${destination}${title}${config.label}局部视觉特写，融合 2D 地图标注，手绘线稿，flipbook 设计`,
       warning: 'POI 服务暂时不可用'
     })
   }
