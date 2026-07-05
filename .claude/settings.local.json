@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file \"C:\\\\Users\\\\31171\\\\OneDrive\\\\Desktop\\\\行迹：AI漫游向导.pptx\")",
+      "Read(//c/Users/31171/OneDrive/Desktop/**)"
+    ]
+  }
+}
