@@ -2057,3 +2057,459 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 2D flipbook map mode */
+.map-page {
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 10% 8%, rgba(255, 115, 85, 0.16), transparent 30%),
+    radial-gradient(circle at 88% 88%, rgba(29, 80, 69, 0.13), transparent 34%),
+    #efeadd;
+}
+
+.map-book-frame {
+  position: absolute;
+  inset: 56px 34px 52px;
+  overflow: hidden;
+  border: 3px solid #111;
+  border-radius: 34px;
+  background: #f9f6ec;
+  box-shadow: 0 24px 70px rgba(24, 20, 14, 0.2);
+}
+
+.map-browser-bar {
+  position: absolute;
+  z-index: 17;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 76px;
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 0 18px;
+  border-bottom: 2px solid rgba(17, 17, 17, 0.18);
+  background: rgba(255, 253, 246, 0.94);
+}
+
+.window-dots {
+  display: flex;
+  gap: 10px;
+}
+
+.window-dots span {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #c8c2b7;
+  border-radius: 50%;
+}
+
+.map-session-title {
+  min-width: 0;
+  height: 46px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 2px solid #111;
+  border-radius: 999px;
+  background: #fffdf6;
+}
+
+.map-session-title strong {
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-session-title span {
+  color: #9b968d;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.map-browser-bar button {
+  height: 42px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  background: #111;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.map-canvas {
+  inset: 76px 0 54px;
+  width: 100%;
+  height: auto;
+  background-color: #f7f4e9;
+  background-size: cover;
+  border: 0;
+}
+
+.map-paper-vignette {
+  background:
+    linear-gradient(to top, rgba(34, 34, 34, 0.04), transparent 30%),
+    radial-gradient(circle at 50% 50%, transparent 62%, rgba(0, 0, 0, 0.12));
+}
+
+.map-book-frame::after {
+  content: "Tap anywhere on the map to expand";
+  position: absolute;
+  z-index: 18;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  color: #f3efe2;
+  background: #222;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.map-header {
+  top: 72px;
+  left: 58px;
+  right: 58px;
+}
+
+.map-title {
+  border: 2px solid #111;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.08);
+}
+
+.map-summary {
+  left: 58px;
+  bottom: 82px;
+  color: var(--ink);
+  border: 2px solid #111;
+  background: rgba(255, 253, 246, 0.92);
+  box-shadow: 0 15px 0 rgba(0, 0, 0, 0.08), 0 28px 60px rgba(20, 18, 14, 0.16);
+}
+
+.map-summary .summary-provider,
+.map-summary > p,
+.map-summary .quick-facts span,
+.map-summary .quick-facts strong,
+.map-summary .panel-warning {
+  color: var(--muted) !important;
+}
+
+.map-summary .quick-facts div {
+  border-color: rgba(17, 17, 17, 0.08);
+  background: #f1eee3;
+}
+
+.map-mode-panel {
+  position: absolute;
+  z-index: 18;
+  top: 150px;
+  left: 58px;
+  width: 168px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  border: 2px solid #111;
+  border-radius: 20px;
+  color: #111;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.08);
+}
+
+.map-mode-panel button {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  border-radius: 13px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.map-mode-panel button span {
+  grid-row: span 2;
+  font-size: 22px;
+}
+
+.map-mode-panel button strong {
+  font-size: 13px;
+}
+
+.map-mode-panel button small {
+  overflow: hidden;
+  color: #7d776e;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-mode-panel button.active {
+  color: white;
+  border-color: #111;
+  background: #111;
+}
+
+.map-mode-panel button.active small {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.map-status {
+  top: 150px;
+  right: 58px;
+  color: #111;
+  border: 2px solid #111;
+  background: rgba(255, 253, 246, 0.94);
+}
+
+.map-hotspot-layer {
+  inset: 150px 7% 118px;
+}
+
+.map-marker {
+  border: 3px solid #111;
+  background: #fffdf6;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.13), 0 14px 28px rgba(0, 0, 0, 0.15);
+}
+
+.map-marker small {
+  color: #111;
+  border: 2px solid #111;
+  background: #fffdf6;
+}
+
+.map-controls {
+  border: 2px solid #111;
+  background: rgba(255, 253, 246, 0.94);
+}
+
+.map-controls button {
+  color: #111;
+}
+
+.map-controls button:hover {
+  color: white;
+  background: #111;
+}
+
+.map-controls span {
+  color: #68635b;
+}
+
+.map-hint {
+  bottom: 22px;
+  color: #7b756c;
+  border: 1px solid rgba(17, 17, 17, 0.12);
+  background: rgba(255, 253, 246, 0.78);
+}
+
+.map-card,
+.area-insight-card {
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+}
+
+.area-insight-card {
+  position: absolute;
+  z-index: 26;
+  right: 58px;
+  bottom: 82px;
+  width: min(430px, calc(100% - 116px));
+  padding: 23px;
+  border-radius: 24px;
+  animation: cardEnter 300ms cubic-bezier(0.2, 0.85, 0.3, 1) both;
+}
+
+.area-loading-line {
+  margin-top: 16px;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+
+.poi-list {
+  max-height: 240px;
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.poi-list article {
+  padding: 11px 12px;
+  display: grid;
+  gap: 4px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.poi-list strong {
+  font-size: 13px;
+}
+
+.poi-list span {
+  color: #ffc1b0;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.poi-list small {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-strip {
+  margin-top: 13px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.route-strip span {
+  min-width: 112px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.route-strip b {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #111;
+  background: #fff;
+}
+
+@media (max-width: 680px) {
+  .map-book-frame {
+    inset: 70px 10px 78px;
+    border-radius: 24px;
+  }
+
+  .map-browser-bar {
+    height: 58px;
+    grid-template-columns: 42px 1fr auto;
+    gap: 8px;
+    padding: 0 10px;
+  }
+
+  .window-dots span {
+    width: 8px;
+    height: 8px;
+  }
+
+  .map-session-title {
+    height: 36px;
+    padding: 0 11px;
+  }
+
+  .map-session-title span {
+    display: none;
+  }
+
+  .map-session-title strong {
+    font-size: 11px;
+  }
+
+  .map-browser-bar button {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 11px;
+  }
+
+  .map-canvas {
+    inset: 58px 0 46px;
+  }
+
+  .map-book-frame::after {
+    height: 46px;
+    font-size: 9px;
+  }
+
+  .map-header {
+    top: 82px;
+    left: 18px;
+    right: 18px;
+  }
+
+  .map-mode-panel {
+    left: 20px;
+    right: 20px;
+    top: auto;
+    bottom: 88px;
+    width: auto;
+    grid-template-columns: repeat(4, 1fr);
+    border-radius: 18px;
+  }
+
+  .map-mode-panel button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 8px 4px;
+    text-align: center;
+  }
+
+  .map-mode-panel button span {
+    grid-row: auto;
+  }
+
+  .map-mode-panel button small {
+    display: none;
+  }
+
+  .map-summary {
+    display: none;
+  }
+
+  .map-status {
+    top: 134px;
+  }
+
+  .map-hotspot-layer {
+    inset: 142px 4% 168px;
+  }
+
+  .area-insight-card {
+    left: 12px;
+    right: 12px;
+    bottom: 154px;
+    width: auto;
+    max-height: 48vh;
+    overflow: auto;
+    padding: 18px;
+  }
+
+  .poi-list {
+    max-height: 150px;
+  }
+
+  .map-hint {
+    display: none;
+  }
+}

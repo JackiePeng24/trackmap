@@ -20,22 +20,20 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react'
-import { generatePanoramaImage, generateTravelGuide } from '../services/api'
+import {
+  createFallbackMapImage,
+  exploreMapArea,
+  generatePanoramaImage,
+  generateTravelGuide
+} from '../services/api'
 
-const fallbackImages = {
-  北京: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?w=1920&q=85',
-  成都: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?w=1920&q=85',
-  杭州: 'https://images.unsplash.com/photo-1599571234909-29ed5d1321d6?w=1920&q=85',
-  西安: 'https://images.unsplash.com/photo-1591122947157-26bad3a117d2?w=1920&q=85',
-  上海: 'https://images.unsplash.com/photo-1537531383496-f4749b8032cf?w=1920&q=85',
-  三亚: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=85'
-}
+const loadingSteps = ['理解目的地结构', '绘制 2D 地图', '检索真实 POI', '铺开 flipbook 画卷']
 
-const loadingSteps = [
-  '理解目的地气质',
-  '生成漫游路线',
-  '核验真实地点',
-  '铺开旅行画卷'
+const modeOptions = [
+  { id: 'food', label: '饮食', icon: '🥢', helper: '餐厅 / 小吃 / 咖啡' },
+  { id: 'shopping', label: '购物', icon: '🛍️', helper: '商场 / 市集 / 文创' },
+  { id: 'stay', label: '住宿', icon: '🏨', helper: '酒店 / 民宿 / 休息点' },
+  { id: 'transit', label: '交通', icon: '🚇', helper: '地铁 / 公交 / 出入口' }
 ]
 
 function PanoramaView({
@@ -52,16 +50,20 @@ function PanoramaView({
   const [loadingStep, setLoadingStep] = useState(0)
   const [imageStatus, setImageStatus] = useState('idle')
   const [imageError, setImageError] = useState('')
-  const [imageUrl, setImageUrl] = useState(fallbackImages[destination] || fallbackImages.北京)
+  const [imageUrl, setImageUrl] = useState(() => createFallbackMapImage(destination, '城市中轴', 'food'))
   const [zoom, setZoom] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [pointerStart, setPointerStart] = useState(null)
   const [selectedHotspot, setSelectedHotspot] = useState(null)
+  const [selectedArea, setSelectedArea] = useState(null)
+  const [activeMode, setActiveMode] = useState('food')
+  const [areaLoading, setAreaLoading] = useState(false)
   const [itineraryOpen, setItineraryOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  const containerRef = useRef(null)
+  const canvasRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -70,14 +72,17 @@ function PanoramaView({
     setWarning('')
     setSource('')
     setSelectedHotspot(null)
+    setSelectedArea(null)
     setItineraryOpen(false)
     setImageStatus('idle')
     setImageError('')
-    setImageUrl(fallbackImages[destination] || fallbackImages.北京)
+    setImageUrl(createFallbackMapImage(destination, '城市中轴', activeMode))
+    setZoom(1)
+    setPosition({ x: 0, y: 0 })
 
     const stepTimer = setInterval(() => {
       setLoadingStep(step => Math.min(step + 1, loadingSteps.length - 1))
-    }, 1200)
+    }, 1100)
 
     async function load() {
       try {
@@ -89,12 +94,13 @@ function PanoramaView({
         setWarning(payload.warning || '')
         clearInterval(stepTimer)
 
-        if (payload.guide?.panoramaPrompt && payload.source === 'vivo') {
+        if (payload.guide?.panoramaPrompt) {
           setImageStatus('generating')
           try {
             const imagePayload = await generatePanoramaImage(
               destination,
-              payload.guide.panoramaPrompt
+              payload.guide.panoramaPrompt,
+              { focus: payload.guide.subtitle, mode: activeMode }
             )
             if (!cancelled) {
               setImageUrl(imagePayload.imageUrl)
@@ -104,12 +110,13 @@ function PanoramaView({
             if (!cancelled) {
               setImageStatus('error')
               setImageError(imageGenerationError.message)
+              setImageUrl(createFallbackMapImage(destination, payload.guide.subtitle, activeMode))
             }
           }
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError.message || '暂时无法生成这次漫游')
+          setError(loadError.message || '暂时无法生成这次地图漫游')
           clearInterval(stepTimer)
         }
       }
@@ -128,10 +135,8 @@ function PanoramaView({
     return () => clearTimeout(timer)
   }, [toast])
 
-  const quickFactIcons = useMemo(
-    () => [Calendar, Clock, Wallet],
-    []
-  )
+  const quickFactIcons = useMemo(() => [Calendar, Clock, Wallet], [])
+  const activeModeInfo = modeOptions.find(mode => mode.id === activeMode) || modeOptions[0]
 
   const clampPosition = (next, currentZoom = zoom) => {
     const maxX = Math.max(0, (currentZoom - 1) * window.innerWidth * 0.34)
@@ -155,6 +160,7 @@ function PanoramaView({
     if (event.button !== undefined && event.button !== 0) return
     event.currentTarget.setPointerCapture?.(event.pointerId)
     setIsDragging(true)
+    setPointerStart({ x: event.clientX, y: event.clientY })
     setDragStart({
       x: event.clientX - position.x,
       y: event.clientY - position.y
@@ -169,9 +175,18 @@ function PanoramaView({
     }))
   }
 
-  const handlePointerUp = (event) => {
+  const handlePointerUp = async (event) => {
     event.currentTarget.releasePointerCapture?.(event.pointerId)
     setIsDragging(false)
+
+    const moved = pointerStart
+      ? Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y)
+      : 0
+    setPointerStart(null)
+
+    if (moved <= 6) {
+      await exploreAtPoint(event)
+    }
   }
 
   const handleWheel = (event) => {
@@ -184,11 +199,62 @@ function PanoramaView({
     setPosition({ x: 0, y: 0 })
   }
 
+  const exploreAtPoint = async (event) => {
+    if (!guide || areaLoading) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const x = Number((((event.clientX - rect.left) / rect.width) * 100).toFixed(1))
+    const y = Number((((event.clientY - rect.top) / rect.height) * 100).toFixed(1))
+    const click = {
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y))
+    }
+
+    setAreaLoading(true)
+    setSelectedHotspot(null)
+    setSelectedArea({
+      area: {
+        title: '识别中',
+        summary: `正在按「${activeModeInfo.label}」模式读取这块地图。`,
+        icon: activeModeInfo.icon,
+        modeLabel: activeModeInfo.label,
+        ...click
+      },
+      pois: [],
+      route: []
+    })
+
+    try {
+      const insight = await exploreMapArea(destination, click, activeMode, guide)
+      setSelectedArea(insight)
+      setImageStatus('generating')
+      try {
+        const imagePayload = await generatePanoramaImage(
+          destination,
+          insight.mapPrompt,
+          { focus: insight.area.title, mode: activeMode }
+        )
+        setImageUrl(imagePayload.imageUrl)
+        setImageStatus('ready')
+      } catch (imageGenerationError) {
+        setImageStatus('error')
+        setImageError(imageGenerationError.message)
+        setImageUrl(createFallbackMapImage(destination, insight.area.title, activeMode))
+      }
+    } catch (areaError) {
+      setToast(areaError.message || '区域识别暂时失败')
+      setSelectedArea(null)
+    } finally {
+      setAreaLoading(false)
+    }
+  }
+
   const shareJourney = async () => {
-    const shareText = `我正在用“行迹”探索${guide?.destination || destination}：${guide?.subtitle || 'AI 漫游路线'}`
+    const shareText = `我正在用“行迹”探索 ${guide?.destination || destination}：${guide?.subtitle || 'AI 2D 地图漫游'}`
     try {
       if (navigator.share) {
-        await navigator.share({ title: '行迹 AI 漫游', text: shareText })
+        await navigator.share({ title: '行迹 AI 地图漫游', text: shareText })
       } else {
         await navigator.clipboard.writeText(shareText)
         setToast('旅行灵感已复制')
@@ -199,22 +265,28 @@ function PanoramaView({
   }
 
   const retryImage = async () => {
-    if (!guide?.panoramaPrompt || imageStatus === 'generating') return
+    const prompt = selectedArea?.mapPrompt || guide?.panoramaPrompt
+    if (!prompt || imageStatus === 'generating') return
     setImageStatus('generating')
     setImageError('')
     try {
-      const payload = await generatePanoramaImage(destination, guide.panoramaPrompt)
+      const payload = await generatePanoramaImage(
+        destination,
+        prompt,
+        { focus: selectedArea?.area?.title || guide.subtitle, mode: activeMode }
+      )
       setImageUrl(payload.imageUrl)
       setImageStatus('ready')
     } catch (retryError) {
       setImageStatus('error')
       setImageError(retryError.message)
+      setImageUrl(createFallbackMapImage(destination, selectedArea?.area?.title || guide.subtitle, activeMode))
     }
   }
 
   if (!guide) {
     return (
-      <main className="journey-loading" style={{ backgroundImage: `url("${imageUrl}")` }}>
+      <main className="journey-loading map-loading" style={{ backgroundImage: `url("${imageUrl}")` }}>
         <span className="journey-loading-overlay" />
         <button type="button" className="round-button loading-back" onClick={onBack} aria-label="返回首页">
           <ArrowLeft size={22} />
@@ -225,8 +297,8 @@ function PanoramaView({
         </div>
         {error ? (
           <div className="loading-copy error-copy">
-            <p className="eyebrow">JOURNEY INTERRUPTED</p>
-            <h1>这次灵感暂时迷路了</h1>
+            <p className="eyebrow">MAP INTERRUPTED</p>
+            <h1>这张地图暂时迷路了</h1>
             <p>{error}</p>
             <button type="button" onClick={() => setReloadKey(key => key + 1)}>
               再试一次
@@ -234,15 +306,12 @@ function PanoramaView({
           </div>
         ) : (
           <div className="loading-copy">
-            <p className="eyebrow">VIVO AIGC IS CREATING</p>
-            <h1>正在打开 {destination}</h1>
+            <p className="eyebrow">VIVO AIGC IS DRAWING</p>
+            <h1>正在铺开 {destination}</h1>
             <p>{loadingSteps[loadingStep]}…</p>
             <div className="loading-progress">
               {loadingSteps.map((step, index) => (
-                <span
-                  key={step}
-                  className={index <= loadingStep ? 'active' : ''}
-                />
+                <span key={step} className={index <= loadingStep ? 'active' : ''} />
               ))}
             </div>
           </div>
@@ -252,28 +321,40 @@ function PanoramaView({
   }
 
   return (
-    <main className="panorama-page" ref={containerRef}>
-      <div
-        className={isDragging ? 'panorama-canvas dragging' : 'panorama-canvas'}
-        style={{
-          backgroundImage: `url("${imageUrl}")`,
-          transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${zoom})`
-        }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onWheel={handleWheel}
-      >
-        <span className="panorama-vignette" />
+    <main className="panorama-page map-page">
+      <div className="map-book-frame">
+        <div className="map-browser-bar">
+          <div className="window-dots" aria-hidden="true"><span /><span /><span /></div>
+          <div className="map-session-title">
+            <strong>{guide.destination}: {guide.subtitle}</strong>
+            <span>/ Tap anywhere to expand</span>
+          </div>
+          <button type="button" onClick={() => setSelectedArea(null)}>Clear</button>
+        </div>
+
+        <div
+          ref={canvasRef}
+          className={isDragging ? 'panorama-canvas map-canvas dragging' : 'panorama-canvas map-canvas'}
+          style={{
+            backgroundImage: `url("${imageUrl}")`,
+            transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${zoom})`
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
+        >
+          <span className="panorama-vignette map-paper-vignette" />
+        </div>
       </div>
 
-      <header className="panorama-header">
+      <header className="panorama-header map-header">
         <button type="button" className="round-button" onClick={onBack} aria-label="返回首页">
           <ArrowLeft size={22} />
         </button>
-        <div className="destination-title">
-          <span>{guide.subtitle}</span>
+        <div className="destination-title map-title">
+          <span>{source === 'vivo' ? 'vivo AI 2D MAP' : 'STATIC 2D MAP'}</span>
           <strong>{guide.destination}</strong>
         </div>
         <div className="header-actions">
@@ -291,10 +372,10 @@ function PanoramaView({
         </div>
       </header>
 
-      <aside className="guide-summary glass-panel">
+      <aside className="guide-summary glass-panel map-summary">
         <div className="summary-provider">
           <span className="provider-dot" />
-          {source === 'vivo' ? 'vivo AI 实时生成' : '离线灵感路线'}
+          {source === 'vivo' ? 'vivo 大模型 · 图片生成 · POI 搜索' : 'GitHub Pages 静态演示'}
         </div>
         <h1>{guide.subtitle}</h1>
         <p>{guide.overview}</p>
@@ -312,53 +393,72 @@ function PanoramaView({
         </div>
         <button type="button" className="primary-action" onClick={() => setItineraryOpen(true)}>
           <List size={19} />
-          查看完整路线
+          查看路线参考
           <span>{guide.itinerary.length} 站</span>
         </button>
         {warning && <p className="panel-warning">{warning}</p>}
       </aside>
 
-      <div className="image-status glass-panel">
+      <section className="map-mode-panel glass-panel" aria-label="探索模式">
+        {modeOptions.map(mode => (
+          <button
+            type="button"
+            key={mode.id}
+            className={activeMode === mode.id ? 'active' : ''}
+            onClick={() => setActiveMode(mode.id)}
+          >
+            <span>{mode.icon}</span>
+            <strong>{mode.label}</strong>
+            <small>{mode.helper}</small>
+          </button>
+        ))}
+      </section>
+
+      <div className="image-status map-status glass-panel">
         {imageStatus === 'generating' && (
           <>
             <Loader2 size={17} className="spinning" />
-            <span>vivo AI 正在绘制专属画卷</span>
+            <span>vivo AI 正在续画地图</span>
           </>
         )}
         {imageStatus === 'ready' && (
           <>
             <Sparkles size={17} />
-            <span>AI 专属画卷已生成</span>
+            <span>2D 地图画卷已生成</span>
           </>
         )}
         {imageStatus === 'error' && (
           <>
             <Image size={17} />
             <button type="button" onClick={retryImage} title={imageError}>
-              画卷生成失败，点击重试
+              地图生成失败，点击重试
             </button>
           </>
         )}
         {imageStatus === 'idle' && (
           <>
             <Image size={17} />
-            <span>当前使用精选目的地图像</span>
+            <span>点击地图任意位置继续探索</span>
           </>
         )}
       </div>
 
-      <div className="hotspot-layer">
+      <div className="hotspot-layer map-hotspot-layer">
         {guide.hotspots.map((hotspot, index) => (
           <button
             type="button"
             key={hotspot.id}
-            className={selectedHotspot?.id === hotspot.id ? 'hotspot-marker active' : 'hotspot-marker'}
+            className={selectedHotspot?.id === hotspot.id ? 'hotspot-marker map-marker active' : 'hotspot-marker map-marker'}
             style={{
               left: `${hotspot.x}%`,
               top: `${hotspot.y}%`,
               '--hotspot-delay': `${index * 120}ms`
             }}
-            onClick={() => setSelectedHotspot(hotspot)}
+            onClick={(event) => {
+              event.stopPropagation()
+              setSelectedArea(null)
+              setSelectedHotspot(hotspot)
+            }}
             aria-label={`探索 ${hotspot.title}`}
           >
             <span>{hotspot.icon}</span>
@@ -380,22 +480,17 @@ function PanoramaView({
         </button>
       </div>
 
-      <div className="gesture-hint">
-        <span>拖拽漫游</span>
+      <div className="gesture-hint map-hint">
+        <span>点击任意区域识别</span>
         <i />
-        <span>滚轮缩放</span>
+        <span>{activeModeInfo.icon} 当前：{activeModeInfo.label}</span>
         <i />
-        <span>点击地点</span>
+        <span>滚轮缩放 / 拖拽地图</span>
       </div>
 
       {selectedHotspot && (
-        <section className="hotspot-card glass-panel" aria-live="polite">
-          <button
-            type="button"
-            className="card-close"
-            onClick={() => setSelectedHotspot(null)}
-            aria-label="关闭地点详情"
-          >
+        <section className="hotspot-card glass-panel map-card" aria-live="polite">
+          <button type="button" className="card-close" onClick={() => setSelectedHotspot(null)} aria-label="关闭地点详情">
             <X size={19} />
           </button>
           <div className="hotspot-card-heading">
@@ -420,14 +515,57 @@ function PanoramaView({
               {selectedHotspot.coordinates && <Check size={15} />}
             </div>
           )}
-          <button
-            type="button"
-            className="primary-action"
-            onClick={() => setItineraryOpen(true)}
-          >
+          <button type="button" className="primary-action" onClick={() => setItineraryOpen(true)}>
             <Navigation size={18} />
-            加入今日路线
+            加入路线参考
           </button>
+        </section>
+      )}
+
+      {selectedArea && (
+        <section className="area-insight-card glass-panel map-card" aria-live="polite">
+          <button type="button" className="card-close" onClick={() => setSelectedArea(null)} aria-label="关闭区域详情">
+            <X size={19} />
+          </button>
+          <div className="hotspot-card-heading">
+            <span>{selectedArea.area.icon || activeModeInfo.icon}</span>
+            <div>
+              <small>点击坐标 {selectedArea.area.x}% · {selectedArea.area.y}%</small>
+              <h2>{selectedArea.area.title}</h2>
+            </div>
+          </div>
+          <p>{selectedArea.area.summary}</p>
+          {areaLoading ? (
+            <div className="area-loading-line">
+              <Loader2 size={17} className="spinning" />
+              正在识别区域与附近单位…
+            </div>
+          ) : (
+            <>
+              <div className="poi-list">
+                {(selectedArea.pois || []).slice(0, 5).map(poi => (
+                  <article key={poi.id}>
+                    <strong>{poi.name}</strong>
+                    <span>{poi.typeName || selectedArea.area.modeLabel}</span>
+                    <small>{poi.address || '暂无地址信息'}</small>
+                  </article>
+                ))}
+                {(!selectedArea.pois || selectedArea.pois.length === 0) && (
+                  <article>
+                    <strong>暂无实时 POI</strong>
+                    <small>可切换模式或点击其他地图区域重试。</small>
+                  </article>
+                )}
+              </div>
+              <div className="route-strip">
+                {(selectedArea.route || []).slice(0, 4).map(step => (
+                  <span key={`${step.order}-${step.title}`}>
+                    <b>{step.order}</b>{step.title}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -435,8 +573,8 @@ function PanoramaView({
         <div className="drawer-handle" />
         <header>
           <div>
-            <p className="eyebrow">ONE DAY JOURNEY</p>
-            <h2>{guide.destination} · 一日漫游</h2>
+            <p className="eyebrow">ROUTE REFERENCE</p>
+            <h2>{guide.destination} · 地图路线</h2>
           </div>
           <button type="button" className="round-button" onClick={() => setItineraryOpen(false)} aria-label="关闭路线">
             <X size={20} />
@@ -456,7 +594,7 @@ function PanoramaView({
         </div>
         <div className="drawer-note">
           <Info size={16} />
-          开放时间、票务与交通可能变化，出发前请以场馆实时信息为准。
+          GitHub Pages 展示静态演示；本地后端会通过 vivo POI 搜索补充真实地址、类型和坐标。
         </div>
       </section>
       {itineraryOpen && <button type="button" className="drawer-backdrop" aria-label="关闭路线" onClick={() => setItineraryOpen(false)} />}
