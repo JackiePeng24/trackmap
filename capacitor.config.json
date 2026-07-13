@@ -1,0 +1,13 @@
+{
+  "appId": "com.xingji.travelguide",
+  "appName": "行迹",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

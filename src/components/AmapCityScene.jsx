@@ -51,7 +51,7 @@ async function hydrateMarkerImages(city, pois, markers, onProgress) {
   onProgress?.(done, pois.length, '')
 }
 
-function AmapCityScene({ keyword, vibe, saved, onBack, onToggleSaved, onPoiSelect, onPlanOpen }) {
+function AmapCityScene({ keyword, vibe, saved, hidden = false, onBack, onToggleSaved, onPoiSelect, onPlanOpen }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const [scene, setScene] = useState(null)
@@ -153,10 +153,16 @@ function AmapCityScene({ keyword, vibe, saved, onBack, onToggleSaved, onPoiSelec
       mapRef.current?.destroy?.()
       mapRef.current = null
     }
-  }, [keyword, vibe, onPoiSelect, retryKey])
+  }, [keyword, vibe, retryKey])
+
+  useEffect(() => {
+    if (!hidden) {
+      window.requestAnimationFrame(() => mapRef.current?.resize?.())
+    }
+  }, [hidden])
 
   return (
-    <main className="city-map-page">
+    <main className={hidden ? 'city-map-page view-kept-hidden' : 'city-map-page'}>
       <header className="map-toolbar city-toolbar">
         <button type="button" className="icon-button" onClick={onBack} aria-label="返回首页">
           <ArrowLeft size={20} />

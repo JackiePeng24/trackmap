@@ -987,6 +987,7 @@ function publicPoi(poi, index, type = 'landmark') {
     lng: point?.lng,
     lat: point?.lat,
     photoUrl: safeText(poi?.photoUrl, '', 300),
+    detail: safeText(poi?.detail || poi?.description || '', '', 240),
     icon: poi?.icon || '📍',
     duration: poi?.duration || '45-90 分钟'
   }
@@ -998,15 +999,29 @@ function poiDistanceMeters(centerPoi, poi) {
   const lng = Number(poi?.lng)
   const lat = Number(poi?.lat)
   if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat) || !Number.isFinite(lng) || !Number.isFinite(lat)) return null
-  return Math.round(Math.sqrt((lng - centerLng) ** 2 + (lat - centerLat) ** 2) * 100000)
+  const toRad = value => (value * Math.PI) / 180
+  const dLat = toRad(lat - centerLat)
+  const dLng = toRad(lng - centerLng)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(centerLat)) * Math.cos(toRad(lat)) * Math.sin(dLng / 2) ** 2
+  return Math.round(6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
+}
+
+function maxPoiDistance(mode) {
+  if (mode === 'stay') return 6000
+  if (mode === 'shopping') return 4500
+  if (mode === 'transit') return 3000
+  return 2800
 }
 
 async function searchModePois(city, centerPoi, mode) {
   const config = modeConfig[mode] || modeConfig.food
   const centerName = safeText(centerPoi?.name, city, 50)
+  const centerAddress = safeText(centerPoi?.address, centerName, 80)
+  const maxDistance = maxPoiDistance(mode)
   const queries = [
     ...config.queries.map(keyword => `${centerName} ${keyword}`),
-    ...config.queries.map(keyword => `${city} ${keyword}`)
+    ...config.queries.map(keyword => `${centerAddress} ${keyword}`),
+    ...config.queries.map(keyword => `${city} ${centerName} ${keyword}`)
   ]
   const batches = await Promise.allSettled(queries.map(query => searchPois(query, city, 12)))
   const seen = new Set()
@@ -1028,7 +1043,15 @@ async function searchModePois(city, centerPoi, mode) {
         const dy = Number(item.lat) - Number(centerPoi.lat)
         item.bearing = Math.round((Math.atan2(dy, dx) * 180) / Math.PI)
         item.distance = distance
+        if (distance > maxDistance) continue
       }
+      item.duration = mode === 'stay' ? '过夜/休整' : mode === 'food' ? '45-90 分钟' : mode === 'transit' ? '10-30 分钟' : '30-90 分钟'
+      item.reason = [
+        item.address ? `地址：${item.address}` : '',
+        item.phone ? `电话：${item.phone}` : '',
+        item.distance ? `距离中心景点约 ${item.distance} 米` : '',
+        item.typeName ? `类别：${item.typeName}` : ''
+      ].filter(Boolean).join('；')
       publicPois.push(item)
     }
   }
@@ -1036,6 +1059,31 @@ async function searchModePois(city, centerPoi, mode) {
   return publicPois
     .sort((a, b) => (a.distance ?? 999999) - (b.distance ?? 999999))
     .slice(0, 12)
+}
+
+async function searchPlaceDetail(city, place) {
+  const base = publicPoi(place, 0, place?.type || 'unit')
+  const query = `${safeText(place?.name, '', 80)} ${safeText(place?.address, '', 80)}`.trim()
+  const pois = query ? await searchPois(query, city, 10) : []
+  const candidates = pois
+    .map((poi, index) => {
+      const item = publicPoi(poi, index, base.type)
+      const distance = poiDistanceMeters(base, item)
+      if (distance !== null) item.distance = distance
+      return item
+    })
+    .filter(item => item.lng && item.lat)
+    .sort((a, b) => (a.distance ?? 999999) - (b.distance ?? 999999))
+  const best = candidates.find(item => !item.distance || item.distance < 1200) || candidates[0] || {}
+  const merged = { ...base, ...Object.fromEntries(Object.entries(best).filter(([, value]) => value !== undefined && value !== '')) }
+  merged.reason = [
+    merged.address ? `位置：${merged.address}` : '',
+    merged.distance ? `距离当前中心点约 ${merged.distance} 米` : '',
+    merged.phone ? `电话：${merged.phone}` : '',
+    merged.typeName ? `类型：${merged.typeName}` : ''
+  ].filter(Boolean).join('；')
+  merged.detailSource = candidates.length ? 'online-poi-search' : 'selected-poi'
+  return merged
 }
 
 function scenePrompt({ sceneType, city, centerPoi, place, mode }) {
@@ -1162,6 +1210,28 @@ app.post('/api/poi-around', async (req, res) => {
       city,
       centerPoi,
       mode
+    })
+  }
+})
+
+app.post('/api/place-detail', async (req, res) => {
+  const city = safeText(req.body?.city, '天津', 40)
+  const place = typeof req.body?.place === 'object' && req.body.place ? req.body.place : {}
+  if (!place?.name) {
+    return res.status(400).json({ error: '缺少地点名称' })
+  }
+
+  try {
+    const detail = await searchPlaceDetail(city, place)
+    return res.json({ place: detail, source: detail.detailSource })
+  } catch (error) {
+    console.error('place-detail failed:', error.message)
+    return res.status(502).json({
+      error: '地点详情联网检索失败',
+      detail: error.message || '未知错误',
+      stage: 'place-detail',
+      city,
+      place
     })
   }
 })

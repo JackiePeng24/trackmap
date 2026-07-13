@@ -1,4 +1,20 @@
 const STATIC_DEMO = import.meta.env.VITE_STATIC_DEMO === 'true'
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+
+function absoluteApiAssetUrl(value) {
+  if (!value || typeof value !== 'string') return value
+  if (!API_BASE_URL || !value.startsWith('/api/')) return value
+  return `${API_BASE_URL}${value}`
+}
+
+function normalizeAssetUrls(payload) {
+  if (Array.isArray(payload)) return payload.map(normalizeAssetUrls)
+  if (!payload || typeof payload !== 'object') return payload
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => [
+    key,
+    key === 'imageUrl' || key === 'photoUrl' ? absoluteApiAssetUrl(value) : normalizeAssetUrls(value)
+  ]))
+}
 
 const modeConfig = {
   food: { label: '美食小吃', typeName: '餐饮' },
@@ -16,7 +32,8 @@ const mockPois = [
 ]
 
 function request(path, options = {}) {
-  return fetch(path, {
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`
+  return fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -28,7 +45,7 @@ function request(path, options = {}) {
       const detail = payload.detail ? `：${payload.detail}` : ''
       throw new Error(`${payload.error || payload.warning || `请求失败 (${response.status})`}${detail}`)
     }
-    return payload
+    return normalizeAssetUrls(payload)
   })
 }
 
@@ -122,6 +139,17 @@ export function generateSceneImage(payload) {
   return request('/api/scene-image', {
     method: 'POST',
     body: JSON.stringify(payload)
+  })
+}
+
+export function fetchPlaceDetail(city, place) {
+  if (STATIC_DEMO) {
+    return Promise.resolve({ place, source: 'static' })
+  }
+
+  return request('/api/place-detail', {
+    method: 'POST',
+    body: JSON.stringify({ city, place })
   })
 }
 

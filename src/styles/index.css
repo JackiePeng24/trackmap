@@ -29,6 +29,7 @@ body,
   min-width: 320px;
   min-height: 100%;
   margin: 0;
+  overscroll-behavior: none;
 }
 
 body {
@@ -1195,6 +1196,7 @@ input:focus-visible {
 .route-summary-page {
   min-height: 100vh;
   padding: 28px clamp(18px, 4vw, 52px);
+  overflow-x: hidden;
   background: #eef2ee;
 }
 
@@ -1214,6 +1216,7 @@ input:focus-visible {
 
 .route-status {
   min-height: 42px;
+  min-width: 0;
   padding: 0 14px;
   display: inline-flex;
   align-items: center;
@@ -1224,6 +1227,12 @@ input:focus-visible {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.route-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .route-summary-layout {
@@ -1259,6 +1268,7 @@ input:focus-visible {
   margin: 0;
   color: var(--muted);
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .route-metrics {
@@ -1326,11 +1336,13 @@ input:focus-visible {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .final-route-steps small {
   color: var(--green);
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .route-notice-panel {
@@ -1360,6 +1372,14 @@ input:focus-visible {
   min-height: 100vh;
   overflow: hidden;
   background: #eef2ee;
+}
+
+.view-kept-hidden {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .city-toolbar {
@@ -1801,6 +1821,10 @@ input:focus-visible {
   width: 100%;
 }
 
+.mobile-plan-actions {
+  display: none;
+}
+
 .place-info-card {
   position: absolute;
   z-index: 8;
@@ -1942,18 +1966,29 @@ input:focus-visible {
 }
 
 @media (max-width: 860px) {
+  .app-shell {
+    min-height: 100dvh;
+  }
+
   .site-header {
-    height: auto;
-    min-height: 68px;
-    align-items: flex-start;
+    position: sticky;
+    min-height: 60px;
+    align-items: center;
     gap: 10px;
-    padding-top: 12px;
+    padding-top: calc(8px + env(safe-area-inset-top));
     padding-bottom: 12px;
   }
 
   .top-tabs {
     max-width: 100%;
     overflow-x: auto;
+    gap: 6px;
+  }
+
+  .top-tabs button {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   .search-stage,
@@ -1991,7 +2026,8 @@ input:focus-visible {
   .map-toolbar {
     left: 12px;
     right: 12px;
-    top: 12px;
+    top: calc(10px + env(safe-area-inset-top));
+    grid-template-columns: 42px minmax(0, 1fr) auto;
   }
 
   .map-title-block {
@@ -2006,7 +2042,7 @@ input:focus-visible {
     left: 12px;
     right: 12px;
     top: auto;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
     grid-template-columns: repeat(4, 1fr);
   }
 
@@ -2022,7 +2058,7 @@ input:focus-visible {
   }
 
   .city-status-panel.ai-status-floating {
-    top: 74px;
+    top: calc(72px + env(safe-area-inset-top));
     left: 12px;
     right: 12px;
     width: auto;
@@ -2032,8 +2068,19 @@ input:focus-visible {
     top: auto;
     left: 12px;
     right: 12px;
-    bottom: 74px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
     width: auto;
+  }
+
+  .mobile-plan-actions {
+    position: absolute;
+    z-index: 16;
+    left: 12px;
+    right: 12px;
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   .center-landmark-visual {
@@ -2054,7 +2101,7 @@ input:focus-visible {
     top: auto;
     left: 12px;
     right: 12px;
-    bottom: 74px;
+    bottom: calc(74px + env(safe-area-inset-bottom));
     width: auto;
     max-height: 66vh;
     transform: translateY(calc(100% + 90px));
@@ -2064,12 +2111,16 @@ input:focus-visible {
     transform: translateY(0);
   }
 
-  .detail-panel {
+  .detail-panel,
+  .place-info-card,
+  .unit-info-card {
     left: 12px;
     right: 12px;
-    bottom: 74px;
+    bottom: calc(74px + env(safe-area-inset-bottom));
     width: auto;
     max-height: 58vh;
+    transform: none;
+    top: auto;
   }
 
   .zoom-controls {
@@ -2080,11 +2131,23 @@ input:focus-visible {
 
 @media (max-width: 560px) {
   .home-workspace {
-    padding: 22px 14px;
+    min-height: calc(100dvh - 60px);
+    padding: 18px 14px calc(24px + env(safe-area-inset-bottom));
   }
 
   .site-header {
-    position: relative;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+
+  .brand strong {
+    font-size: 17px;
   }
 
   .brand small {
@@ -2095,12 +2158,199 @@ input:focus-visible {
     padding: 0 10px;
   }
 
+  .search-stage {
+    gap: 16px;
+  }
+
+  .search-copy h1 {
+    margin: 8px 0 12px;
+    font-size: 32px;
+    line-height: 1.12;
+  }
+
+  .search-copy p:last-child {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .search-console {
+    border-radius: 18px;
+  }
+
+  .search-input-row {
+    min-height: 54px;
+    border-radius: 15px;
+  }
+
   .mini-map {
     height: 260px;
   }
 
   .quick-panel {
     min-height: 150px;
+    border-radius: 18px;
+  }
+
+  .dashboard-grid {
+    gap: 12px;
+  }
+
+  .city-map-page,
+  .ai-scene-page,
+  .place-detail-page,
+  .route-summary-page {
+    min-height: 100dvh;
+  }
+
+  .place-detail-page {
+    overflow: auto;
+    padding-top: calc(92px + env(safe-area-inset-top));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .city-status-panel {
+    top: calc(72px + env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .landmark-marker-card {
+    width: 116px;
+    padding: 6px;
+  }
+
+  .landmark-marker-name {
+    font-size: 11px;
+  }
+
+  .ai-scene-stage,
+  .detail-hero {
+    inset: calc(72px + env(safe-area-inset-top)) 10px calc(12px + env(safe-area-inset-bottom));
+    border-radius: 20px;
+  }
+
+  .place-detail-page .detail-hero {
+    position: relative;
+    inset: auto;
+    height: min(42vh, 360px);
+    min-height: 260px;
+    margin: 0 10px 12px;
+  }
+
+  .poi-map-stage {
+    inset: calc(124px + env(safe-area-inset-top)) 10px calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .center-landmark-visual {
+    width: min(180px, 52vw);
+    min-height: 214px;
+    padding: 12px;
+  }
+
+  .center-landmark-image {
+    width: min(118px, 34vw);
+    border-radius: 16px;
+  }
+
+  .center-poi-card strong {
+    font-size: 16px;
+  }
+
+  .around-poi-card {
+    width: 132px;
+    min-height: 54px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .ai-scene-tip {
+    display: none;
+  }
+
+  .second-plan-card {
+    display: none;
+  }
+
+  .mobile-plan-actions {
+    bottom: calc(74px + env(safe-area-inset-bottom));
+  }
+
+  .place-info-card,
+  .unit-info-card {
+    max-height: min(58vh, 560px);
+    overflow: auto;
+    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+
+  .place-detail-page .place-info-card,
+  .place-detail-page .unit-info-card {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    width: auto;
+    max-height: none;
+    margin: 0 10px 14px;
+    transform: none;
+    overflow: visible;
+  }
+
+  .place-info-card > .primary-action {
+    position: sticky;
+    z-index: 3;
+    bottom: 8px;
+    width: 100%;
+    min-height: 52px;
+    margin-top: 14px;
+    box-shadow: 0 16px 34px rgba(20, 32, 31, 0.22);
+  }
+
+  .route-summary-page {
+    padding: calc(18px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .route-summary-header h1 {
+    font-size: 28px;
+  }
+
+  .route-summary-header {
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .route-status {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .route-summary-layout {
+    gap: 12px;
+  }
+
+  .route-overview-panel,
+  .route-detail-panel,
+  .route-notice-panel {
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .final-route-steps li {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .final-route-steps li > b {
+    width: 30px;
+    height: 30px;
+  }
+
+  .route-overview-panel,
+  .route-detail-panel,
+  .route-notice-panel {
+    border-radius: 18px;
   }
 
   .fact-grid,
@@ -2110,5 +2360,14 @@ input:focus-visible {
 
   .planner-drawer h2 {
     font-size: 18px;
+  }
+
+  .planner-drawer {
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    max-height: min(54vh, 520px);
+  }
+
+  .planner-drawer.open {
+    transform: translateY(0);
   }
 }

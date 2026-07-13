@@ -26,6 +26,9 @@ function createPlanItem(source, type, destination) {
     type,
     note: source.reason || source.description || source.address || '',
     address: source.address || '',
+    phone: source.phone || '',
+    distance: source.distance,
+    typeName: source.typeName || '',
     duration: source.duration || (type === '景点' ? '60-120 分钟' : '30-60 分钟'),
     lng: source.lng,
     lat: source.lat
@@ -80,7 +83,6 @@ function App() {
       if (items.some(current => current.id === planItem.id)) return items
       return [...items, { ...planItem, addedAt: Date.now() }]
     })
-    setPlannerOpen(true)
   }
 
   const removePlanItem = (id) => {
@@ -122,50 +124,39 @@ function App() {
     setView('place-detail')
   }
 
-  if (view === 'city-map') {
+  if (view === 'city-map' || (view === 'poi-ai' && selectedPoi && cityScene) || (view === 'place-detail' && selectedPlace && cityScene)) {
     return (
       <>
         <AmapCityScene
           keyword={keyword}
           vibe={vibe}
           saved={savedPlaces.includes(keyword)}
+          hidden={view !== 'city-map'}
           onBack={() => setView('home')}
           onToggleSaved={() => toggleSavedPlace(keyword)}
           onPoiSelect={selectCityPoi}
           onPlanOpen={() => setPlannerOpen(true)}
         />
-        <TripPlanDrawer open={plannerOpen} planItems={planItems} onClose={() => setPlannerOpen(false)} onRemove={removePlanItem} onMove={movePlanItem} onUpdate={updatePlanItem} onRouteSummary={openRouteSummary} />
-      </>
-    )
-  }
-
-  if (view === 'poi-ai' && selectedPoi && cityScene) {
-    return (
-      <>
-        <PoiAiScene
-          cityScene={cityScene}
-          centerPoi={selectedPoi}
-          onBack={() => setView('city-map')}
-          onPlaceSelect={selectPlace}
-          onAddPlanItem={addPlanItem}
-          onPlanOpen={() => setPlannerOpen(true)}
-        />
-        <TripPlanDrawer open={plannerOpen} planItems={planItems} onClose={() => setPlannerOpen(false)} onRemove={removePlanItem} onMove={movePlanItem} onUpdate={updatePlanItem} onRouteSummary={openRouteSummary} />
-      </>
-    )
-  }
-
-  if (view === 'place-detail' && selectedPlace && cityScene) {
-    return (
-      <>
-        <PlaceDetailAiScene
-          city={cityScene.city}
-          place={selectedPlace}
-          detailMode={detailMode}
-          onBack={() => setView('poi-ai')}
-          onAddPlanItem={addPlanItem}
-          onPlanOpen={() => setPlannerOpen(true)}
-        />
+        {view === 'poi-ai' && (
+          <PoiAiScene
+            cityScene={cityScene}
+            centerPoi={selectedPoi}
+            onBack={() => setView('city-map')}
+            onPlaceSelect={selectPlace}
+            onAddPlanItem={addPlanItem}
+            onPlanOpen={() => setPlannerOpen(true)}
+          />
+        )}
+        {view === 'place-detail' && (
+          <PlaceDetailAiScene
+            city={cityScene.city}
+            place={selectedPlace}
+            detailMode={detailMode}
+            onBack={() => setView('poi-ai')}
+            onAddPlanItem={addPlanItem}
+            onPlanOpen={() => setPlannerOpen(true)}
+          />
+        )}
         <TripPlanDrawer open={plannerOpen} planItems={planItems} onClose={() => setPlannerOpen(false)} onRemove={removePlanItem} onMove={movePlanItem} onUpdate={updatePlanItem} onRouteSummary={openRouteSummary} />
       </>
     )

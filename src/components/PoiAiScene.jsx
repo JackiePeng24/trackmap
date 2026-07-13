@@ -19,6 +19,90 @@ function fallbackOverlayPosition(index, count) {
   }
 }
 
+function rectsOverlap(a, b, gap = 10) {
+  return !(
+    a.right + gap < b.left ||
+    a.left - gap > b.right ||
+    a.bottom + gap < b.top ||
+    a.top - gap > b.bottom
+  )
+}
+
+function avoidOverlap(point, rect, placed) {
+  const isNarrow = rect.width < 640
+  const cardWidth = isNarrow ? 132 : 152
+  const cardHeight = isNarrow ? 58 : 64
+  const centerWidth = isNarrow ? 178 : 310
+  const centerHeight = isNarrow ? 236 : 350
+  const obstacles = [{
+    left: rect.width / 2 - centerWidth / 2,
+    right: rect.width / 2 + centerWidth / 2,
+    top: rect.height / 2 - centerHeight / 2,
+    bottom: rect.height / 2 + centerHeight / 2
+  }]
+
+  if (!isNarrow) {
+    obstacles.push(
+      { left: rect.width - 350, right: rect.width - 16, top: 74, bottom: 306 },
+      { left: 0, right: 138, top: 0, bottom: 230 }
+    )
+  }
+
+  const bounds = {
+    minX: cardWidth / 2 + 12,
+    maxX: isNarrow ? rect.width - cardWidth / 2 - 12 : Math.max(cardWidth / 2 + 12, rect.width - cardWidth / 2 - 370),
+    minY: isNarrow ? 80 : 76,
+    maxY: rect.height - cardHeight / 2 - (isNarrow ? 128 : 24)
+  }
+  const originAngle = Math.atan2(point.y - rect.height / 2, point.x - rect.width / 2)
+  const radii = [0, 44, 78, 116, 154, 196]
+  const angleOffsets = [0, 0.45, -0.45, 0.9, -0.9, 1.35, -1.35, Math.PI]
+
+  for (const radius of radii) {
+    for (const offset of angleOffsets) {
+      const x = Math.min(bounds.maxX, Math.max(bounds.minX, point.x + Math.cos(originAngle + offset) * radius))
+      const y = Math.min(bounds.maxY, Math.max(bounds.minY, point.y + Math.sin(originAngle + offset) * radius))
+      const next = {
+        x,
+        y,
+        left: x - cardWidth / 2,
+        right: x + cardWidth / 2,
+        top: y - cardHeight / 2,
+        bottom: y + cardHeight / 2
+      }
+      if (obstacles.every(item => !rectsOverlap(next, item, isNarrow ? 8 : 14)) && placed.every(item => !rectsOverlap(next, item, isNarrow ? 8 : 12))) {
+        return next
+      }
+    }
+  }
+
+  return {
+    x: Math.min(bounds.maxX, Math.max(bounds.minX, point.x)),
+    y: Math.min(bounds.maxY, Math.max(bounds.minY, point.y))
+  }
+}
+
+function mobileSlotPosition(point, rect, usedSlots) {
+  const slots = [
+    [0.22, 0.25],
+    [0.78, 0.25],
+    [0.18, 0.44],
+    [0.82, 0.44],
+    [0.22, 0.64],
+    [0.78, 0.64],
+    [0.36, 0.18],
+    [0.64, 0.18],
+    [0.36, 0.76],
+    [0.64, 0.76]
+  ].map(([x, y], index) => ({ index, x: rect.width * x, y: rect.height * y }))
+  const ranked = slots
+    .filter(slot => !usedSlots.has(slot.index))
+    .sort((a, b) => ((a.x - point.x) ** 2 + (a.y - point.y) ** 2) - ((b.x - point.x) ** 2 + (b.y - point.y) ** 2))
+  const slot = ranked[0] || slots[usedSlots.size % slots.length]
+  usedSlots.add(slot.index)
+  return slot
+}
+
 function PoiAiScene({ cityScene, centerPoi, onBack, onPlaceSelect, onAddPlanItem, onPlanOpen }) {
   const mapContainerRef = useRef(null)
   const mapRef = useRef(null)
@@ -36,16 +120,21 @@ function PoiAiScene({ cityScene, centerPoi, onBack, onPlaceSelect, onAddPlanItem
     if (!map || !container) return
     const rect = container.getBoundingClientRect()
     const nextPositions = {}
+    const placed = []
+    const usedMobileSlots = new Set()
     nextPlaces.forEach((place, index) => {
       const lng = Number(place.lng)
       const lat = Number(place.lat)
       if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
       const point = map.lngLatToContainer([lng, lat])
-      const x = Math.min(rect.width - 94, Math.max(94, Number(point.x)))
-      const y = Math.min(rect.height - 44, Math.max(88, Number(point.y)))
+      const projected = { x: Number(point.x), y: Number(point.y) }
+      const adjusted = rect.width < 640
+        ? mobileSlotPosition(projected, rect, usedMobileSlots)
+        : avoidOverlap(projected, rect, placed)
+      placed.push(adjusted)
       nextPositions[place.id || `${place.name}-${index}`] = {
-        left: `${x}px`,
-        top: `${y}px`
+        left: `${adjusted.x}px`,
+        top: `${adjusted.y}px`
       }
     })
     setCardPositions(nextPositions)
@@ -179,6 +268,17 @@ function PoiAiScene({ cityScene, centerPoi, onBack, onPlaceSelect, onAddPlanItem
             </button>
           )
         })}
+      </section>
+
+      <section className="mobile-plan-actions" aria-label="行程操作">
+        <button type="button" className="primary-action" onClick={() => onAddPlanItem(centerPoi, '景点')}>
+          <Check size={16} />
+          加入行程
+        </button>
+        <button type="button" className="secondary-action" onClick={onPlanOpen}>
+          <Navigation size={16} />
+          查看规划
+        </button>
       </section>
 
       <section className="city-status-panel ai-status-floating">
